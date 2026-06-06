@@ -1,0 +1,113 @@
+{
+  "theme": "DARK",
+  "archetype": "5 (Luxury - Deep Space Cyber) + 4 (Swiss & High-Contrast - Dark Mode)",
+  "global_rules": {
+    "border_radius": "lg (0.5rem) to xl (0.75rem) - crisp yet subtle roundness to soften the brutalist dark UI",
+    "glassmorphism": "backdrop-blur-2xl bg-[#0A0A12]/60 border border-white/10 backdrop-saturate-150",
+    "animations": "framer-motion for smooth entrance, staggered list reveals, hover micro-interactions (translate-y-1)",
+    "spacing": "Generous spacing system (p-8 to p-12 for inner container padding), massive gaps between landing page sections (py-32)",
+    "testing": "All interactive elements (buttons, inputs, links, tabs) MUST have data-testid attributes"
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Outfit",
+      "weights": ["300", "500", "700"],
+      "styling": "tracking-tight, high-contrast white/off-white",
+      "h1": "text-5xl sm:text-6xl tracking-tighter font-light",
+      "h2": "text-3xl sm:text-4xl tracking-tight font-medium",
+      "h3": "text-xl sm:text-2xl font-medium"
+    },
+    "body": {
+      "font_family": "Manrope",
+      "weights": ["400", "500"],
+      "styling": "text-slate-300 leading-relaxed text-base"
+    },
+    "mono_accents": {
+      "font_family": "JetBrains Mono",
+      "styling": "text-xs tracking-[0.2em] uppercase text-[#00F0FF]"
+    }
+  },
+  "colors": {
+    "background": {
+      "base": "#030305",
+      "surface": "#0A0A12",
+      "surface_elevated": "#12121D"
+    },
+    "accents": {
+      "primary": "#00F0FF",
+      "secondary": "#4F00FF",
+      "tertiary": "#0A1128",
+      "highlight": "#E0FFFF"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#9BA1B0",
+      "muted": "#4B5563",
+      "inverse": "#000000"
+    },
+    "borders": {
+      "default": "rgba(255, 255, 255, 0.05)",
+      "strong": "rgba(255, 255, 255, 0.15)",
+      "focus": "#00F0FF"
+    }
+  },
+  "layout": {
+    "landing_page": {
+      "hero": "Full height (min-h-screen). Centered massive text H1. Background image 'hero_vortex' with bg-black/60 overlay to ensure text contrast. Crystal glass nav fixed at top.",
+      "features": "Bento Grid ('Tetris' mode). grid-cols-1 md:grid-cols-12 gap-8. Direct motion.div children. Mix of span-8 hero feature, span-4 squares.",
+      "pricing": "3-tier glass cards. Use the 'Tracing Beam' or subtle neon border-glow on the Pro/Enterprise tier.",
+      "testimonials": "Horizontal scroll / marquee with 'Editorial Ribbon' slow scroll speed. Low contrast cards.",
+      "faq": "Shadcn accordion centered, max-w-3xl.",
+      "footer": "Massive py-32 spacing. Darkest background (#030305). Huge 10vw VORTEX text at the bottom."
+    },
+    "dashboard": {
+      "structure": "Control Room Grid. Strict grid-cols-12 layout. Dense gap-4 or gap-6. Sidebar is #0A0A12, Main content area is #030305.",
+      "tools_grid": "Compact widgets, 1px border border-white/5, hover -translate-y-1, subtle glow. Use Phosphor Icons.",
+      "chat_ui": "Narrow central chat feed (max-w-3xl) to ensure readability. Deep tinted user bubbles (#0A1128), transparent AI bubbles with 1px border-white/10.",
+      "code_generator": "Dark terminal aesthetic for output window. Use JetBrains Mono for code."
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#00F0FF] text-black font-semibold hover:bg-[#E0FFFF] transition-all shadow-[0_0_15px_rgba(0,240,255,0.3)]",
+      "secondary": "backdrop-blur-md bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors",
+      "ghost": "text-slate-300 hover:text-white hover:bg-white/5"
+    },
+    "cards": {
+      "default": "bg-[#0A0A12] border border-white/5 rounded-xl shadow-lg",
+      "glass": "backdrop-blur-xl bg-[#0A0A12]/40 border border-white/10 shadow-2xl",
+      "interactive": "hover:border-white/20 transition-all cursor-pointer hover:shadow-[0_8px_32px_rgba(0,240,255,0.05)]"
+    },
+    "inputs": {
+      "style": "bg-[#12121D] border border-white/10 rounded-lg text-white focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF] transition-all placeholder:text-slate-600 h-12 px-4"
+    }
+  },
+  "media": {
+    "logos": {
+      "brand_logo": "https://customer-assets.emergentagent.com/job_e8fbdd8e-9dde-4bc1-bb31-5473be113ed6/artifacts/c7b8qocd_WhatsApp%20Image%202026-06-05%20at%208.34.35%20PM.jpeg",
+      "partner_1": "https://images.unsplash.com/photo-1597773150796-e5c14ebecbf5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGJsdWUlMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODA3Mjk3OTd8MA&ixlib=rb-4.1.0&q=85"
+    },
+    "backgrounds": {
+      "hero_vortex": "https://images.pexels.com/photos/12707786/pexels-photo-12707786.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "abstract_art": "https://images.unsplash.com/photo-1597773150796-e5c14ebecbf5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGJsdWUlMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODA3Mjk3OTd8MA&ixlib=rb-4.1.0&q=85"
+    },
+    "testimonials": {
+      "user_1": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MDcyOTc5Nnww&ixlib=rb-4.1.0&q=85",
+      "user_2": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MDcyOTc5Nnww&ixlib=rb-4.1.0&q=85",
+      "user_3": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MDcyOTc5Nnww&ixlib=rb-4.1.0&q=85"
+    }
+  },
+  "instructions_to_main_agent": [
+    "INSTALL PACKAGES: yarn add framer-motion @phosphor-icons/react react-fast-marquee clsx tailwind-merge",
+    "CUSTOMIZE SHADCN: By default Shadcn uses white/light-mode variables. Override the globals.css with the exact colors provided in this JSON: --background: #030305, --foreground: #FFFFFF, --card: #0A0A12, --border: rgba(255,255,255,0.05), --primary: #00F0FF.",
+    "Do NOT use raw HTML <select> or native date pickers. Use customized Shadcn dropdowns and calendar components.",
+    "Use Outfit for Headings, JetBrains Mono for overlines/metrics/code, Manrope for body text. Add these to Tailwind config.",
+    "Ensure glassmorphism overlays do not ruin contrast. Provide text-shadows if text overlaps complex image elements.",
+    "Implement 'data-testid' across all interactive elements (buttons, inputs, navigation, dialogs).",
+    "Dashboard cards should avoid flat default appearance - use subtle 1px border-white/5 and dark background #0A0A12.",
+    "Never use dummyimage.com or via.placeholder.com. Use the exact URLs provided in the media section of this JSON.",
+    "For Code Output components, ensure proper terminal styling (dark background, monospaced font, colored syntax mimicking VS Code dark theme).",
+    "Landing page hero must use the provided vortex image URL as background with a dark overlay, and feature the brand logo prominently.",
+    "Admin Panel and Dashboard Analytics should use Recharts or Shadcn Charts with Electric Blue and Deep Purple strokes."
+  ]
+}
