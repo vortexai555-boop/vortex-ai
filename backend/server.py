@@ -155,6 +155,22 @@ async def log_activity(user_id: str, kind: str, summary: str):
     })
 
 
+def detect_image_mime(b64: str) -> str:
+    """Detect mime type from base64-encoded image's signature prefix."""
+    if not b64:
+        return "image/png"
+    # JPEG bytes (0xFF 0xD8 0xFF) -> base64 starts with "/9j/"
+    if b64.startswith("/9j/"):
+        return "image/jpeg"
+    # PNG bytes (0x89 0x50 0x4E 0x47) -> base64 starts with "iVBOR"
+    if b64.startswith("iVBOR"):
+        return "image/png"
+    # WebP (RIFF) -> "UklGR"
+    if b64.startswith("UklGR"):
+        return "image/webp"
+    return "image/png"
+
+
 async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None) -> str:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id or new_id("sess"), system_message=system).with_model(*CHAT_MODEL)
@@ -333,7 +349,7 @@ async def images_generate(body: ImageGenIn, user=Depends(get_current_user)):
     items = []
     for data in results:
         if not data: continue
-        rec = {"id": new_id("img"), "user_id": user["user_id"], "prompt": body.prompt, "aspect_ratio": body.aspect_ratio, "data": data, "created_at": now_utc().isoformat()}
+        rec = {"id": new_id("img"), "user_id": user["user_id"], "prompt": body.prompt, "aspect_ratio": body.aspect_ratio, "data": data, "mime": detect_image_mime(data), "created_at": now_utc().isoformat()}
         await db.images.insert_one(rec.copy())
         items.append({k: v for k, v in rec.items() if k != "user_id"})
     await deduct_credits(user["user_id"], n * 2)
@@ -358,7 +374,7 @@ async def logos_generate(body: LogoGenIn, user=Depends(get_current_user)):
     items = []
     for data in results:
         if not data: continue
-        rec = {"id": new_id("logo"), "user_id": user["user_id"], "brand": body.brand, "industry": body.industry, "data": data, "created_at": now_utc().isoformat()}
+        rec = {"id": new_id("logo"), "user_id": user["user_id"], "brand": body.brand, "industry": body.industry, "data": data, "mime": detect_image_mime(data), "created_at": now_utc().isoformat()}
         await db.logos.insert_one(rec.copy())
         items.append({k: v for k, v in rec.items() if k != "user_id"})
     await deduct_credits(user["user_id"], n * 2)
@@ -417,23 +433,67 @@ async def business_generate(body: BusinessIn, user=Depends(get_current_user)):
 
 @api.post("/website/generate")
 async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
+    """Kick off website generation as a background task. Returns a job id immediately."""
     await require_credits(user, 3)
+    job_id = new_id("job")
+    job = {
+        "id": job_id,
+        "user_id": user["user_id"],
+        "status": "pending",
+        "description": body.description,
+        "site_type": body.site_type,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.website_jobs.insert_one(job.copy())
+    # Reserve credits up front so concurrent requests can't double-spend
+    await deduct_credits(user["user_id"], 3)
+    asyncio.create_task(_run_website_job(job_id, user["user_id"], body.description, body.site_type))
+    return {"job_id": job_id, "status": "pending"}
+
+
+async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str):
     prompt = (
-        f"Build a beautiful, modern, fully responsive {body.site_type} website as a SINGLE self-contained HTML file. "
-        f"Requirements: {body.description}. Use inline CSS and JS. Include header, hero, features, CTA, footer. "
+        f"Build a beautiful, modern, fully responsive {site_type} website as a SINGLE self-contained HTML file. "
+        f"Requirements: {description}. Use inline CSS and JS. Include header, hero, features, CTA, footer. "
         f"Return ONLY the HTML inside a ```html fenced block."
     )
-    out = await llm_complete(SYSTEM_PROMPTS["website"], prompt)
-    html = out
-    if "```html" in out:
-        html = out.split("```html", 1)[1].split("```", 1)[0].strip()
-    elif "```" in out:
-        html = out.split("```", 1)[1].split("```", 1)[0].strip()
-    rec = {"id": new_id("site"), "user_id": user["user_id"], "description": body.description, "site_type": body.site_type, "html": html, "created_at": now_utc().isoformat()}
-    await db.websites.insert_one(rec.copy())
-    await deduct_credits(user["user_id"], 3)
-    await log_activity(user["user_id"], "website", body.description[:120])
-    return {"id": rec["id"], "html": html}
+    try:
+        out = await llm_complete(SYSTEM_PROMPTS["website"], prompt)
+        html = out
+        if "```html" in out:
+            html = out.split("```html", 1)[1].split("```", 1)[0].strip()
+        elif "```" in out:
+            html = out.split("```", 1)[1].split("```", 1)[0].strip()
+        site_id = new_id("site")
+        rec = {
+            "id": site_id, "user_id": user_id, "description": description,
+            "site_type": site_type, "html": html, "created_at": now_utc().isoformat(),
+        }
+        await db.websites.insert_one(rec.copy())
+        await db.website_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "done", "site_id": site_id, "html": html, "completed_at": now_utc().isoformat()}},
+        )
+        await log_activity(user_id, "website", description[:120])
+    except Exception as e:
+        logger.exception("website job failed: %s", e)
+        await db.website_jobs.update_one(
+            {"id": job_id},
+            {"$set": {"status": "error", "error": str(e)[:300], "completed_at": now_utc().isoformat()}},
+        )
+        # Refund credits on failure
+        await db.users.update_one({"user_id": user_id}, {"$inc": {"credits": 3}})
+
+
+@api.get("/website/jobs/{job_id}")
+async def website_job_status(job_id: str, user=Depends(get_current_user)):
+    job = await db.website_jobs.find_one(
+        {"id": job_id, "user_id": user["user_id"]},
+        {"_id": 0, "user_id": 0},
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 @api.get("/website")
 async def list_websites(user=Depends(get_current_user)):

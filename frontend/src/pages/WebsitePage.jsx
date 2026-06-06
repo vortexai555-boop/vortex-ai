@@ -53,13 +53,27 @@ export default function WebsitePage() {
     setGenerating(true);
     setCurrent(null);
     try {
-      const r = await api.post("/website/generate", { description: desc, site_type: siteType });
-      setCurrent(r.data);
+      const start = await api.post("/website/generate", { description: desc, site_type: siteType });
+      const jobId = start.data.job_id;
+      if (!jobId) throw new Error("No job id returned");
+      // Poll job status every 2 seconds, timeout after 5 minutes
+      const deadline = Date.now() + 5 * 60 * 1000;
+      let done = null;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const j = await api.get(`/website/jobs/${jobId}`);
+        if (j.data.status === "done") { done = j.data; break; }
+        if (j.data.status === "error") {
+          throw new Error(j.data.error || "Generation failed");
+        }
+      }
+      if (!done) throw new Error("Generation timed out — please try again");
+      setCurrent({ id: done.site_id, html: done.html, description: desc });
       toast.success("Your website is ready");
       loadHistory();
       refresh();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Generation failed");
+      toast.error(err?.response?.data?.detail || err.message || "Generation failed");
     } finally {
       setGenerating(false);
     }

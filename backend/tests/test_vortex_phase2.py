@@ -1,5 +1,6 @@
 """VORTEX AI Phase 2 - Website Builder + Image Generator API tests."""
 import os
+import time
 import uuid
 import pytest
 import requests
@@ -127,35 +128,56 @@ class TestImageGenerator:
         assert ids_a.isdisjoint(ids_b), "User B can see User A's images!"
 
 
-# ---- Website Builder ----
+# ---- Website Builder (async job pattern) ----
+def _poll_job(token, job_id, max_wait=300):
+    deadline = time.time() + max_wait
+    last = None
+    while time.time() < deadline:
+        r = requests.get(f"{API}/website/jobs/{job_id}", headers=auth_headers(token), timeout=20)
+        if r.status_code != 200:
+            return r.status_code, r.text
+        last = r.json()
+        if last.get("status") in ("done", "error"):
+            return 200, last
+        time.sleep(3)
+    return 0, last
+
+
 class TestWebsiteBuilder:
     def test_unauth(self):
         r = requests.post(f"{API}/website/generate", json={"description": "x", "site_type": "landing"}, timeout=10)
         assert r.status_code in (401, 403)
 
-    def test_generate_website_admin(self, admin_token):
-        # Retry once on transient 502 (ingress timeout on long LLM call)
-        last_err = None
-        for attempt in range(2):
-            try:
-                r = requests.post(
-                    f"{API}/website/generate",
-                    json={"description": "Landing page for a coffee brand called Brewly", "site_type": "landing"},
-                    headers=auth_headers(admin_token),
-                    timeout=120,
-                )
-                if r.status_code == 200:
-                    body = r.json()
-                    assert "id" in body and "html" in body
-                    html = body["html"]
-                    assert len(html) > 200, f"HTML too short: {len(html)}"
-                    assert "<html" in html.lower() or "<!doctype" in html.lower() or "<body" in html.lower()
-                    TestWebsiteBuilder._last_site_id = body["id"]
-                    return
-                last_err = f"status {r.status_code}: {r.text[:200]}"
-            except requests.RequestException as e:
-                last_err = str(e)
-        pytest.fail(f"Website generate failed after retry: {last_err}")
+    def test_generate_website_admin_async(self, admin_token):
+        before = _credits(admin_token)
+        r = requests.post(
+            f"{API}/website/generate",
+            json={"description": "Landing page for a coffee brand called Brewly", "site_type": "landing"},
+            headers=auth_headers(admin_token),
+            timeout=30,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert "job_id" in body
+        assert body.get("status") == "pending"
+        job_id = body["job_id"]
+
+        # Credits should be reserved up-front
+        after_reserve = _credits(admin_token)
+        # Admin has enterprise plan; just check credits non-negative
+        assert after_reserve >= 0
+        # Reserve assertion is via free user test below
+
+        # Poll job
+        code, result = _poll_job(admin_token, job_id, max_wait=300)
+        assert code == 200, f"Poll failed: {result}"
+        assert result["status"] == "done", f"Job did not complete: {result.get('error')}"
+        assert "html" in result and "site_id" in result
+        html = result["html"]
+        assert len(html) > 200, f"HTML too short: {len(html)}"
+        assert "<html" in html.lower() or "<!doctype" in html.lower() or "<body" in html.lower()
+        TestWebsiteBuilder._last_site_id = result["site_id"]
+        TestWebsiteBuilder._last_job_id = job_id
 
     def test_list_websites_for_admin(self, admin_token):
         r = requests.get(f"{API}/website", headers=auth_headers(admin_token), timeout=20)
@@ -168,22 +190,52 @@ class TestWebsiteBuilder:
             assert "user_id" not in it
             assert "html" in it and "description" in it and "site_type" in it
 
-    def test_credits_deducted_for_free_user(self, user_a):
+    def test_credits_reserved_immediately(self, user_a):
+        """POST should reserve 3 credits immediately (before LLM completes)."""
         before = _credits(user_a["token"])
-        last_err = None
-        for attempt in range(2):
-            r = requests.post(
-                f"{API}/website/generate",
-                json={"description": "Simple portfolio site for a UX designer named Maya", "site_type": "portfolio"},
-                headers=auth_headers(user_a["token"]),
-                timeout=120,
-            )
-            if r.status_code == 200:
-                after = _credits(user_a["token"])
-                assert before - after == 3, f"Expected 3-credit deduction, got {before-after}"
-                return
-            last_err = f"status {r.status_code}: {r.text[:200]}"
-        pytest.skip(f"Website generation transient failure (acceptable, see iter1 notes): {last_err}")
+        r = requests.post(
+            f"{API}/website/generate",
+            json={"description": "Simple portfolio site for a UX designer named Maya", "site_type": "portfolio"},
+            headers=auth_headers(user_a["token"]),
+            timeout=30,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        job_id = body["job_id"]
+        # Within seconds of POST, credits should have been deducted
+        time.sleep(1)
+        after_reserve = _credits(user_a["token"])
+        assert before - after_reserve == 3, f"Expected immediate 3-credit reserve, got {before-after_reserve}"
+
+        # Poll for completion to ensure no double-refund / double-charge
+        code, result = _poll_job(user_a["token"], job_id, max_wait=300)
+        assert code == 200, f"Poll failed: {result}"
+        final = _credits(user_a["token"])
+        if result["status"] == "done":
+            assert before - final == 3, f"Expected net -3 after success, got {before-final}"
+        elif result["status"] == "error":
+            # Backend refunds on failure
+            assert before - final == 0, f"Expected refund (net 0) after error, got {before-final}"
+
+    def test_job_ownership_404_for_other_user(self, user_a, user_b):
+        """User B should get 404 for a job owned by User A."""
+        # Create job under user_a
+        r = requests.post(
+            f"{API}/website/generate",
+            json={"description": "About page for a tiny bakery", "site_type": "landing"},
+            headers=auth_headers(user_a["token"]),
+            timeout=30,
+        )
+        assert r.status_code == 200, r.text
+        job_id = r.json()["job_id"]
+
+        # User B attempts to read user A's job -> 404
+        r_b = requests.get(f"{API}/website/jobs/{job_id}", headers=auth_headers(user_b["token"]), timeout=15)
+        assert r_b.status_code == 404, f"Expected 404 for cross-user job access, got {r_b.status_code}"
+
+        # Owner can still read it
+        r_a = requests.get(f"{API}/website/jobs/{job_id}", headers=auth_headers(user_a["token"]), timeout=15)
+        assert r_a.status_code == 200
 
     def test_user_isolation_websites(self, user_a, user_b):
         r_a = requests.get(f"{API}/website", headers=auth_headers(user_a["token"]), timeout=20)
@@ -195,3 +247,31 @@ class TestWebsiteBuilder:
         ids_b = {i["id"] for i in r_b.json()}
         if ids_a:
             assert ids_a.isdisjoint(ids_b), "User B can see User A's websites!"
+
+
+# ---- Image MIME detection ----
+class TestImageMime:
+    def test_mime_field_present_on_generate(self, admin_token):
+        r = requests.post(
+            f"{API}/images/generate",
+            json={"prompt": "soft pastel sunrise over mountains", "aspect_ratio": "1:1", "count": 1},
+            headers=auth_headers(admin_token),
+            timeout=120,
+        )
+        assert r.status_code == 200, r.text
+        img = r.json()["images"][0]
+        assert "mime" in img, "Response is missing 'mime' field"
+        assert img["mime"] in ("image/jpeg", "image/png", "image/webp")
+        # Verify mime matches base64 magic prefix
+        if img["data"].startswith("/9j/"):
+            assert img["mime"] == "image/jpeg"
+        elif img["data"].startswith("iVBOR"):
+            assert img["mime"] == "image/png"
+
+    def test_mime_field_present_on_list(self, admin_token):
+        r = requests.get(f"{API}/images", headers=auth_headers(admin_token), timeout=20)
+        assert r.status_code == 200
+        items = r.json()
+        assert len(items) >= 1
+        for it in items:
+            assert "mime" in it, "List response missing 'mime' field on item"

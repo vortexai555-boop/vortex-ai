@@ -1,0 +1,43 @@
+{
+  "summary": "VORTEX AI Phase 2 follow-up testing: both iteration_2 outstanding issues are FIXED. (1) Website Builder 502/ingress timeout is RESOLVED by the new async job pattern — POST /api/website/generate returns {job_id, status: 'pending'} immediately, background task runs LLM, frontend polls /api/website/jobs/{job_id} every 2s. Verified end-to-end via UI: prompt 'Modern landing page for a coffee brand called Brewly' → Landing Page → Generate; iframe rendered with 29,504-char HTML in 84s; Code tab also shows the same 29,504-char source; the new site appeared in history list. (2) Image MIME detection is working — backend adds `mime` field with `/9j/` prefix detected as `image/jpeg` and `iVBOR` as `image/png`. Frontend uses mimeOf(img) so all 9 history images now correctly render via `data:image/jpeg;base64,/9j/4AAQSkZJRgAB...` instead of hardcoded image/png. Backend regression: test_vortex_api.py 21/21 PASS; test_vortex_phase2.py 12/13 PASS (1 minor failure — see below). No CRA red overlay on any of /dashboard, /dashboard/chat, /dashboard/website, /dashboard/images, /dashboard/profile, /dashboard/settings. Job ownership cross-user 404 verified. Credit reservation (3 deducted up-front, refund on error) verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/images", "issue": "Historical image records (inserted before the `mime` field was added in this iteration) are returned WITHOUT a `mime` key. New rows include it. Frontend has a mimeOf() fallback so users render fine, but the API contract becomes inconsistent across rows. Fix options: (a) compute mime on read if missing — `rec['mime'] = rec.get('mime') or detect_image_mime(rec['data'])` in the list endpoint, or (b) backfill DB once on startup. Same applies to GET /api/logos."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_vortex_api.py",
+    "/app/backend/tests/test_vortex_phase2.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/pytest_phase2_results.xml"
+  ],
+  "action_items": [
+    "LOW: Backfill or coerce `mime` field on GET /api/images (and /api/logos) for historical rows. Trivial fix: `out['mime'] = out.get('mime') or detect_image_mime(out['data'])` in the list endpoint serializer."
+  ],
+  "critical_code_review_comments": [
+    "Async website job pattern is well implemented: credits reserved up front on POST, refunded by background task on exception ($inc by 3) — matches the spec and avoids both the ingress 60s timeout AND double-charging.",
+    "_run_website_job uses `asyncio.create_task(...)` fire-and-forget. If the backend process restarts mid-job, the job stays in 'pending' forever. Consider a TTL/timeout fallback (e.g. mark jobs >10min old + still pending as 'error') or persisting + resuming on startup. Not blocking for MVP.",
+    "Job-status response includes the full `html` payload (~30KB) on every poll — frontend polls every 2s. Consider omitting `html` until status=='done' to reduce bandwidth on intermediate polls. Currently the JSON only contains html when set, which is fine, but worth flagging.",
+    "server.py is now ~599 lines. Split into modules (auth/chat/billing/website/images/admin) is overdue — same finding as iter_1/2.",
+    "detect_image_mime() defaults to image/png on unknown prefix — safe default since browsers MIME-sniff."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_vortex_phase2.py"
+  ],
+  "success_rate": {
+    "backend": "Phase 1 regression 21/21 (100%); Phase 2 12/13 (92%) — only failure is the historical-rows-missing-mime edge case noted above, not a regression",
+    "frontend": "100% — login, sidebar nav, all 6 protected routes render with no CRA overlay; website async generation end-to-end (preview iframe + code tab + history) works in 84s; image gallery renders 9 historical JPEGs with correct data:image/jpeg URI"
+  },
+  "test_credentials": "Admin admin@vortex.ai / VortexAdmin@2026 (seeded, enterprise plan; credits 99959 remaining post-test).",
+  "seed_data_creation": "Phase 2 tests create test_p2_userA_* / test_p2_userB_* free accounts. Each website-generation test now triggers an async job (3 credits reserved up-front). Footprint small, not cleaned up.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression baseline = /app/backend/tests/test_vortex_api.py (21 tests, all pass) + /app/backend/tests/test_vortex_phase2.py (13 tests, 12 pass). New async-job tests under TestWebsiteBuilder now use _poll_job() helper; phase2 suite runtime ~3.5min because the website-builder LLM call takes 60–90s and we run it three times. New TestImageMime class covers the mime-field contract. If you need to verify the only failing test (test_mime_field_present_on_list), the root cause is historical DB rows lacking the new field — confirm by either backfilling or by reading newly-generated images only.",
+  "rca_of_the_issue": "Iteration_2 had two outstanding issues. (1) Website 502: caused by the LiteLLM Claude call exceeding the 60s ingress timeout. Fixed by converting POST /api/website/generate to an async job pattern — returns job_id immediately, _run_website_job runs as a fire-and-forget asyncio.create_task, GET /api/website/jobs/{job_id} polls status. Credits reserved up-front (3) and refunded on error. Verified: POST returns in <1s with {job_id, status:'pending'}, full HTML available in job document at status='done' ~80s later. (2) Image MIME mismatch: Gemini Nano Banana returns JPEG bytes (b64 prefix `/9j/`) but the frontend was hardcoding `data:image/png;base64,`. Backend now detects mime via base64 prefix (`/9j/` → image/jpeg, `iVBOR` → image/png, `UklGR` → image/webp) and adds `mime` to image documents at insert time. Frontend mimeOf(img) uses it for `<img src>`, download blob type, and filename extension. Verified the 9 historical images on /dashboard/images now render with src='data:image/jpeg;base64,/9j/...' — correct."
+}

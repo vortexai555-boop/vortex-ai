@@ -81,10 +81,13 @@ export default function ImagePage() {
     }
   };
 
+  const mimeOf = (img) => img?.mime || (img?.data?.startsWith("/9j/") ? "image/jpeg" : "image/png");
+  const extOf = (img) => mimeOf(img) === "image/jpeg" ? "jpg" : (mimeOf(img) === "image/webp" ? "webp" : "png");
+
   const download = (img) => {
     const bytes = Uint8Array.from(atob(img.data), (c) => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: "image/png" });
-    saveAs(blob, `vortex-${img.id || Date.now()}.png`);
+    const blob = new Blob([bytes], { type: mimeOf(img) });
+    saveAs(blob, `vortex-${img.id || Date.now()}.${extOf(img)}`);
   };
 
   return (
@@ -178,7 +181,7 @@ export default function ImagePage() {
                   {results.map((img, i) => (
                     <div key={img.id || i} className="glass rounded-2xl overflow-hidden group" data-testid={`image-result-${i}`}>
                       <div className={`${ASPECT_CLASS[aspect] || "aspect-square"} bg-black relative`}>
-                        <img src={`data:image/png;base64,${img.data}`} alt="" className="w-full h-full object-cover" />
+                        <img src={`data:${mimeOf(img)};base64,${img.data}`} alt="" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
                           <Button size="icon" onClick={() => setLightbox(img)} className="bg-white/10 hover:bg-white/20 mr-2" data-testid={`image-zoom-${i}`}>
                             <MagnifyingGlassPlus size={16} />
@@ -207,7 +210,7 @@ export default function ImagePage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {history.map((h) => (
                     <button key={h.id} onClick={() => setLightbox(h)} className="aspect-square overflow-hidden rounded-xl border border-white/5 hover:border-white/20 transition group" data-testid={`image-history-${h.id}`}>
-                      <img src={`data:image/png;base64,${h.data}`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                      <img src={`data:${mimeOf(h)};base64,${h.data}`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                     </button>
                   ))}
                 </div>
@@ -224,7 +227,7 @@ export default function ImagePage() {
             <X size={28} />
           </button>
           <div className="max-w-5xl w-full" onClick={(e) => e.stopPropagation()}>
-            <img src={`data:image/png;base64,${lightbox.data}`} alt="" className="w-full rounded-xl" />
+            <img src={`data:${mimeOf(lightbox)};base64,${lightbox.data}`} alt="" className="w-full rounded-xl" />
             <div className="mt-4 flex items-center justify-between gap-4">
               <div className="text-sm text-slate-400 truncate flex-1">{lightbox.prompt}</div>
               <Button onClick={() => download(lightbox)} className="btn-primary-vortex" data-testid="image-lightbox-download">
