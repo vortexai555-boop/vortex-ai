@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
@@ -86,8 +87,16 @@ export default function BillingPage() {
             <div className="text-sm text-slate-400 mt-1">
               {user?.credits ?? 0} credits remaining
               {sub?.activation_code && (
-                <span className="ml-3 inline-block">
+                <span className="ml-3 inline-flex items-center gap-2">
                   · Code <span className="font-mono text-vortex-cyan" data-testid="billing-active-code">{sub.activation_code}</span>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(sub.activation_code); toast.success("Activation code copied"); }}
+                    className="inline-flex items-center gap-1 text-vortex-cyan hover:text-white text-xs"
+                    data-testid="billing-copy-code"
+                    title="Copy activation code"
+                  >
+                    <Copy size={12} />
+                  </button>
                 </span>
               )}
             </div>
@@ -162,7 +171,17 @@ export default function BillingPage() {
                       <div className="font-medium capitalize">{p.plan} plan</div>
                       <div className="text-xs text-slate-500">UTR: <span className="font-mono">{p.utr_number}</span> · {new Date(p.created_at).toLocaleString()}</div>
                       {p.activation_code && (
-                        <div className="text-xs text-vortex-cyan mt-1">Activation code: <span className="font-mono">{p.activation_code}</span></div>
+                        <div className="text-xs text-vortex-cyan mt-1 inline-flex items-center gap-2">
+                          Activation code: <span className="font-mono">{p.activation_code}</span>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(p.activation_code); toast.success("Activation code copied"); }}
+                            className="inline-flex items-center hover:text-white"
+                            data-testid={`billing-copy-code-${p.id}`}
+                            title="Copy activation code"
+                          >
+                            <Copy size={11} />
+                          </button>
+                        </div>
                       )}
                     </div>
                     <span className={`px-2.5 py-1 rounded-md text-xs ${s.className} flex items-center gap-1.5`}>
