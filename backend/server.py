@@ -359,7 +359,11 @@ async def images_generate(body: ImageGenIn, user=Depends(get_current_user)):
 
 @api.get("/images")
 async def list_images(user=Depends(get_current_user)):
-    return await db.images.find({"user_id": user["user_id"]}, {"_id": 0, "user_id": 0}).sort("created_at", -1).limit(60).to_list(60)
+    docs = await db.images.find({"user_id": user["user_id"]}, {"_id": 0, "user_id": 0}).sort("created_at", -1).limit(60).to_list(60)
+    for d in docs:
+        if not d.get("mime"):
+            d["mime"] = detect_image_mime(d.get("data", ""))
+    return docs
 
 
 @api.post("/logos/generate")
