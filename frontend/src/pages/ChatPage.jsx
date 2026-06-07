@@ -46,11 +46,11 @@ export default function ChatPage() {
   
  useEffect(() => {
   loadConversations();
-}, []);
-
+}, [loadConversations])
+// eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => {
   loadConversation(cid);
-}, [cid]);
+}, [cid, loadConversation]);
 
 useEffect(() => {
   if (scrollRef.current) {
