@@ -45,8 +45,8 @@ export default function ChatPage() {
   };
 
   useEffect(() => { loadConversations(); }, []);
-  useEffect(() => { loadConversation(cid); }, [cid]);
-  useEffect(() => {
+  useEffect(() => { loadConversation(cid); }, [cid,
+  loadconversations]);
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [current?.messages, sending]);
 
