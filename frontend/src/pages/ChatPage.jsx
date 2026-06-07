@@ -45,6 +45,7 @@ export default function ChatPage() {
   };
 
   useEffect(() => { loadConversations(); }, []);
+  [loadconversation]);
   useEffect(() => { loadConversation(cid); }, [cid,
   loadconversations]);
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
