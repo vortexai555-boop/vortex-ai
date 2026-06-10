@@ -350,17 +350,33 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
     history = conv.get("messages", [])[-20:]
     transcript = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history[:-1]])
     prompt = (transcript + "\n\nUSER: " + body.message) if transcript else body.message
-    try:
-       try:
-    reply = await llm_complete(system, prompt, session_id=cid)
-except Exception as e:
-    logger.exception("chat failed: %s", e)
-    raise HTTPException(status_code=500, detail=str(e))
-    ai_msg = {"role": "assistant", "content": reply, "ts": now_utc().isoformat()}
-    await db.conversations.update_one({"id": cid, "user_id": user["user_id"]}, {"$push": {"messages": ai_msg}, "$set": {"updated_at": now_utc().isoformat()}})
+        try:
+        reply = await llm_complete(system, prompt, session_id=cid)
+    except Exception as e:
+        logger.exception("chat failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    ai_msg = {
+        "role": "assistant",
+        "content": reply,
+        "ts": now_utc().isoformat()
+    }
+
+    await db.conversations.update_one(
+        {"id": cid, "user_id": user["user_id"]},
+        {
+            "$push": {"messages": ai_msg},
+            "$set": {"updated_at": now_utc().isoformat()}
+        }
+    )
+
     await deduct_credits(user["user_id"], 1)
     await log_activity(user["user_id"], tool, body.message[:120])
-    return {"conversation_id": cid, "reply": reply}
+
+    return {
+        "conversation_id": cid,
+        "reply": reply
+    }
 
 
 ASPECT_HINTS = {"1:1": "square 1:1", "16:9": "wide cinematic 16:9", "9:16": "vertical portrait 9:16", "4:3": "classic 4:3"}
