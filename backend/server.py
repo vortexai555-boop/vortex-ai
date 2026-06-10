@@ -190,7 +190,7 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
             "https://openrouter.ai/api/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=60
+            timeout=20
         )
 
     data = response.json()
