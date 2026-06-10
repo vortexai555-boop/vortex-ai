@@ -1,5 +1,4 @@
 """VORTEX AI - Premium AI SaaS Platform Backend."""
-import google.generativeai as genai
 import os
 import uuid
 import logging
