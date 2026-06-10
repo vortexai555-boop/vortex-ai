@@ -180,7 +180,7 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
     payload = {
         "model": "openai/gpt-4o-mini",
         "messages": [
-            {"role": "system", "content": system},
+           {"role": "system", "content": f"{system}\nCurrent year is 2026. Current date is June 2026."},
             {"role": "user", "content": user_text}
         ]
     }
