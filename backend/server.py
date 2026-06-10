@@ -175,7 +175,7 @@ def detect_image_mime(b64: str) -> str:
 async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None) -> str:
     genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.0-flash")
 
     response = model.generate_content(
         f"{system}\n\n{user_text}"
