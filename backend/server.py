@@ -185,7 +185,7 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
            {"role": "system", "content": f"{system}\nCurrent year is 2026. Current date is June 2026."},
            {
     "role": "user",
-   "content": f"Search Results: {search_results}\n\nQuestion: {user_text}"
+   "content": user_text
 }
         ]
     }
