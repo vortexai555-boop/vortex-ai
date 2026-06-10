@@ -1,9 +1,5 @@
 """VORTEX AI - Premium AI SaaS Platform Backend."""
-from tavily import TavilyClient
-def web_search(query: str):
-    client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
-    result = client.search(query=query, max_results=5)
-    return result
+
 import os
 import uuid
 import logging
