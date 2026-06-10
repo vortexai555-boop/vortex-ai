@@ -1,4 +1,5 @@
 """VORTEX AI - Premium AI SaaS Platform Backend."""
+import google.generativeai as genai
 import os
 import uuid
 import logging
@@ -172,9 +173,15 @@ def detect_image_mime(b64: str) -> str:
 
 
 async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None) -> str:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id or new_id("sess"), system_message=system).with_model(*CHAT_MODEL)
-    return await chat.send_message(UserMessage(text=user_text))
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+
+    model = genai.GenerativeModel("gemini-1.5-flash")
+
+    response = model.generate_content(
+        f"{system}\n\n{user_text}"
+    )
+
+    return response.text
 
 async def gen_image(prompt: str) -> Optional[str]:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
