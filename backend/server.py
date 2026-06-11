@@ -382,12 +382,14 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
         transcript + "\n\nUSER: " + body.message
     ) if transcript else body.message
 
+   if body.message.replace(" ", "").replace("*", "").isdigit():
+    reply = str(eval(body.message))
+else:
     try:
         reply = await llm_complete(system, prompt, session_id=cid)
     except Exception as e:
         logger.exception("chat failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
     ai_msg = {
         "role": "assistant",
         "content": reply,
