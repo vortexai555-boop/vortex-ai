@@ -377,21 +377,14 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
     transcript = "\n".join(
         [f"{m['role'].upper()}: {m['content']}" for m in history[:-1]]
     )
-   import re
-
-prompt = (
+ prompt = (
     transcript + "\n\nUSER: " + body.message
 ) if transcript else body.message
 
-if re.fullmatch(r"[0-9+\-*/(). ]+", body.message):
-    try:
-        reply = str(eval(body.message))
-    except:
-        reply = "Invalid calculation"
-else:
-    try:
-        reply = await llm_complete(system, prompt, session_id=cid)
-    except Exception as e:
+try:
+    reply = await llm_complete(system, prompt, session_id=cid)
+except Exception as e:
+    reply = f"Error: {e}"
         reply = f"Error: {str(e)}"
         "ts": now_utc().isoformat()
     }
