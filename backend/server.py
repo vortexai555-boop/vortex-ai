@@ -65,6 +65,10 @@ class ChatMessageIn(BaseModel):
     message: str
     tool: str = "chat"
 
+
+class CalcIn(BaseModel):
+    expression: str
+
 class RenameIn(BaseModel):
     title: str
 
@@ -310,6 +314,7 @@ SYSTEM_PROMPTS = {
     "content": "You are VORTEX Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
     "business": "You are VORTEX Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
     "website": "You are VORTEX Web — an expert frontend engineer. When asked, output a SINGLE complete HTML file with inline CSS+JS in a ```html code block.",
+    "calculator": "Calculator"
 }
 
 @api.get("/conversations")
@@ -332,10 +337,39 @@ async def rename_conversation(cid: str, body: RenameIn, user=Depends(get_current
     await db.conversations.update_one({"id": cid, "user_id": user["user_id"]}, {"$set": {"title": body.title, "updated_at": now_utc().isoformat()}})
     return {"ok": True}
 
+import re
+
 @api.post("/chat/send")
 async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
     await require_credits(user, 1)
 
+    # Calculator mode
+    if body.tool == "calculator":
+        try:
+            expression = body.message.strip()
+
+            # Only allow numbers and math operators
+            if not re.match(r'^[0-9+\-*/().\s]+$', expression):
+                raise ValueError("Invalid expression")
+
+            result = eval(
+                expression,
+                {"__builtins__": {}},
+                {}
+            )
+
+            return {
+                "conversation_id": body.conversation_id,
+                "reply": str(result)
+            }
+
+        except Exception as e:
+            return {
+                "conversation_id": body.conversation_id,
+                "reply": f"Calculator Error: {str(e)}"
+            }
+
+    # Normal chat continues below
     tool = body.tool if body.tool in SYSTEM_PROMPTS else "chat"
     system = SYSTEM_PROMPTS[tool]
 
@@ -366,6 +400,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
             "$set": {"updated_at": now_utc().isoformat()}
         }
     )
+
     conv = await db.conversations.find_one(
         {"id": cid, "user_id": user["user_id"]},
         {"_id": 0}
