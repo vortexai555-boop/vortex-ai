@@ -372,7 +372,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
         {"_id": 0}
     )
 
-       history = conv.get("messages", [])[-20:]
+        history = conv.get("messages", [])[-20:]
 
     transcript = "\n".join(
         [f"{m['role'].upper()}: {m['content']}" for m in history[:-1]]
@@ -384,10 +384,14 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
 
     try:
         reply = await llm_complete(system, prompt, session_id=cid)
-    except Exception as e:
-        reply = f"Error: {str(e)}"
-        "ts": now_utc().isoformat()
-    }
+   except Exception as e:
+    reply = f"Error: {str(e)}"
+
+assistant_msg = {
+    "role": "assistant",
+    "content": reply,
+    "ts": now_utc().isoformat()
+}
 
     await db.conversations.update_one(
         {"id": cid, "user_id": user["user_id"]},
