@@ -349,9 +349,13 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
     conv = await db.conversations.find_one({"id": cid, "user_id": user["user_id"]}, {"_id": 0})
     history = conv.get("messages", [])[-20:]
     transcript = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history[:-1]])
-    prompt = (transcript + "\n\nUSER: " + body.message) if transcript else body.message
-        try:
-        reply = await llm_complete(system, prompt, session_id=cid)
+  prompt = (transcript + "\n\nUSER: " + body.message) if transcript else body.message
+
+try:
+    reply = await llm_complete(system, prompt, session_id=cid)
+except Exception as e:
+    logger.exception("chat failed: %s", e)
+    raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         logger.exception("chat failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -382,7 +386,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
 ASPECT_HINTS = {"1:1": "square 1:1", "16:9": "wide cinematic 16:9", "9:16": "vertical portrait 9:16", "4:3": "classic 4:3"}
 
 @api.post("/images/generate")
-async def gen_image(prompt: str) -> Optional[str]:
+async def generate_image_api(prompt: str) -> Optional[str]:
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     try:
         chat = LlmChat(
