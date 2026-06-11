@@ -382,9 +382,9 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
         transcript + "\n\nUSER: " + body.message
     ) if transcript else body.message
 
-    try:
-        reply = await llm_complete(system, prompt, session_id=cid)
-  except Exception as e:
+  try:
+    reply = await llm_complete(system, prompt, session_id=cid)
+except Exception as e:
     reply = f"Error: {str(e)}"
 
 assistant_msg = {
