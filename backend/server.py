@@ -336,27 +336,67 @@ async def rename_conversation(cid: str, body: RenameIn, user=Depends(get_current
 async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
     await require_credits(user, 1)
     tool = body.tool if body.tool in SYSTEM_PROMPTS else "chat"
+ @api.post("/chat/send")
+async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
+    await require_credits(user, 1)
+
+    tool = body.tool if body.tool in SYSTEM_PROMPTS else "chat"
     system = SYSTEM_PROMPTS[tool]
-   cid = body.conversation_id
 
-if not cid:
-    cid = new_id("conv")
-    await db.conversations.insert_one({
-        "id": cid,
-        "user_id": user["user_id"],
-        "title": body.message[:60],
-        "tool": tool,
-        "messages": [],
-        "created_at": now_utc().isoformat(),
-        "updated_at": now_utc().isoformat(),
-    })
+    cid = body.conversation_id
 
-user_msg = {
-    "role": "user",
-    "content": body.message,
-    "ts": now_utc().isoformat()
-}
+    if not cid:
+        cid = new_id("conv")
+        await db.conversations.insert_one({
+            "id": cid,
+            "user_id": user["user_id"],
+            "title": body.message[:60],
+            "tool": tool,
+            "messages": [],
+            "created_at": now_utc().isoformat(),
+            "updated_at": now_utc().isoformat(),
+        })
 
+    user_msg = {
+        "role": "user",
+        "content": body.message,
+        "ts": now_utc().isoformat()
+    }
+
+    await db.conversations.update_one(
+        {"id": cid, "user_id": user["user_id"]},
+        {
+            "$push": {"messages": user_msg},
+            "$set": {"updated_at": now_utc().isoformat()}
+        }
+    )
+
+    conv = await db.conversations.find_one(
+        {"id": cid, "user_id": user["user_id"]},
+        {"_id": 0}
+    )
+
+    history = conv.get("messages", [])[-20:]
+
+    transcript = "\n".join(
+        [f"{m['role'].upper()}: {m['content']}" for m in history[:-1]]
+    )
+
+    prompt = (
+        transcript + "\n\nUSER: " + body.message
+    ) if transcript else body.message
+
+    try:
+        reply = await llm_complete(system, prompt, session_id=cid)
+    except Exception as e:
+        logger.exception("chat failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    ai_msg = {
+        "role": "assistant",
+        "content": reply,
+        "ts": now_utc().isoformat()
+    }
 await db.conversations.update_one(
     {"id": cid, "user_id": user["user_id"]},
     {
