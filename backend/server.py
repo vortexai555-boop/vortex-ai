@@ -433,7 +433,12 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
     # Web Search
     try:
         search_results = await web_search(body.message)
-
+        print("SEARCH RESULTS:", search_results)
+        print("RESULT COUNT:", len(search_results))
+    except Exception as e:
+        print("SEARCH ERROR:", str(e))
+        logger.exception("Search failed: %s", e)
+       
         search_text = "\n".join([
             f"- {r.get('title', '')}: {r.get('body', '')}"
             for r in search_results[:5]
