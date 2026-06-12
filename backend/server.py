@@ -399,7 +399,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
             "messages": [],
             "created_at": now_utc().isoformat(),
             "updated_at": now_utc().isoformat(),
-        })
+          })
 
     user_msg = {
         "role": "user",
@@ -415,7 +415,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
         }
     )
 
-      conv = await db.conversations.find_one(
+    conv = await db.conversations.find_one(
         {"id": cid, "user_id": user["user_id"]},
         {"_id": 0}
     )
@@ -440,10 +440,8 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
 
         prompt = f"""
 You have access to fresh web search results.
-
 WEB RESULTS:
 {search_text}
-
 USER QUESTION:
 {body.message}
 """
