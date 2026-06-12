@@ -456,11 +456,11 @@ Do not say you lack real-time information.
         logger.exception("Search failed: %s", e)
 
     try:
-    print("SEARCH RESULTS:", search_results)
-except:
-    print("SEARCH RESULTS: None")
+        print("SEARCH RESULTS:", search_results)
+    except:
+        print("SEARCH RESULTS: None")
 
-print("PROMPT:", prompt[:2000])
+    print("PROMPT:", prompt[:2000])
     
 try:
         reply = await llm_complete(
