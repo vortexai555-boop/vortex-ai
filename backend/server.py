@@ -426,7 +426,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
         [f"{m['role'].upper()}: {m['content']}" for m in history[:-1]]
     )
 
-      prompt = (
+    prompt = (
         transcript + "\n\nUSER: " + body.message
     ) if transcript else body.message
 
