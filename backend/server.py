@@ -203,8 +203,8 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
             timeout=20
         )
         
-data = response.json()
-return data["choices"][0]["message"]["content"]
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
 
 
 from duckduckgo_search import DDGS
