@@ -455,7 +455,7 @@ Do not say you lack real-time information.
     except Exception as e:
         logger.exception("Search failed: %s", e)
 
-       try:
+    try:
         print("SEARCH RESULTS:", search_results)
     except:
         print("SEARCH RESULTS: None")
