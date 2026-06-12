@@ -431,29 +431,29 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
     ) if transcript else body.message
 
   # Web Search
-try:
-    search_results = await web_search(body.message)
-
-    search_text = "\n".join([
-        f"- {r.get('title', '')}: {r.get('body', '')}"
-        for r in search_results[:5]
-    ])
-
-    prompt = f"""
-You have access to fresh web search results.
-
-WEB RESULTS:
-{search_text}
-
-USER QUESTION:
-{body.message}
-
-Answer using the web results when relevant.
-Do not say you lack real-time information.
-"""
-
-except Exception as e:
-    logger.exception("Search failed: %s", e)
+    try:
+        search_results = await web_search(body.message)
+    
+        search_text = "\n".join([
+            f"- {r.get('title', '')}: {r.get('body', '')}"
+            for r in search_results[:5]
+        ])
+    
+        prompt = f"""
+    You have access to fresh web search results.
+    
+    WEB RESULTS:
+    {search_text}
+    
+    USER QUESTION:
+    {body.message}
+    
+    Answer using the web results when relevant.
+    Do not say you lack real-time information.
+    """
+    
+    except Exception as e:
+        logger.exception("Search failed: %s", e)
 
 try:
     reply = await llm_complete(system, prompt, session_id=cid)
