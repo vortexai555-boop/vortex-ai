@@ -202,8 +202,8 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
             json=payload,
             timeout=20
         )
-
-   data = response.json()
+        
+data = response.json()
 return data["choices"][0]["message"]["content"]
 
 
