@@ -470,7 +470,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
             for r in search_results[:5]
         ])
 
-        prompt = f"""
+prompt = f"""
 Previous Conversation:
 {transcript}
 
@@ -484,45 +484,46 @@ Use the search results ONLY if they are relevant to the user's question.
 If they are unrelated, ignore them and answer normally.
 """
 
-    logger.debug("Prompt sent to LLM: %s", prompt[:2000])
+logger.debug("Prompt sent to LLM: %s", prompt[:2000])
 
-   try:
-       full_prompt = f"""
-   SYSTEM:
-   {system}
-   USER:
-   {prompt}
-   """
+try:
+    full_prompt = f"""
+SYSTEM:
+{system}
 
-       response = ai_client.models.generate_content(
-           model="gemini-2.5-flash",
-           contents=full_prompt
-       )
+USER:
+{prompt}
+"""
 
-       reply = response.text
-
-   except Exception as e:
-       logger.exception("Gemini error: %s", e)
-       reply = f"Error: {str(e)}"
-
-    assistant_msg = {
-        "role": "assistant",
-        "content": reply,
-        "ts": now_utc().isoformat()
-    }
-
-    await db.conversations.update_one(
-        {"id": cid, "user_id": user["user_id"]},
-        {
-            "$push": {"messages": assistant_msg},
-            "$set": {"updated_at": now_utc().isoformat()}
-        }
+    response = ai_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=full_prompt
     )
 
-    return {
-        "conversation_id": cid,
-        "reply": reply
+    reply = response.text
+
+except Exception as e:
+    logger.exception("Gemini error: %s", e)
+    reply = f"Error: {str(e)}"
+
+assistant_msg = {
+    "role": "assistant",
+    "content": reply,
+    "ts": now_utc().isoformat()
+}
+
+await db.conversations.update_one(
+    {"id": cid, "user_id": user["user_id"]},
+    {
+        "$push": {"messages": assistant_msg},
+        "$set": {"updated_at": now_utc().isoformat()}
     }
+)
+
+return {
+    "conversation_id": cid,
+    "reply": reply
+}
 
 
 ASPECT_HINTS = {"1:1": "square 1:1", "16:9": "wide cinematic 16:9", "9:16": "vertical portrait 9:16", "4:3": "classic 4:3"}
