@@ -456,24 +456,25 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
         logger.exception("Search failed: %s", e)
         search_results = []
 
-    if search_results:
-        search_text = "\n".join([
-            f"- {r.get('title', '')}: {r.get('body', '')}"
-            for r in search_results[:5]
-        ])
+   if search_results:
+    search_text = "\n".join([
+        f"- {r.get('title', '')}: {r.get('body', '')}"
+        for r in search_results[:5]
+    ])
 
-        prompt = f"""
+    prompt = f"""
+Previous Conversation:
 {transcript}
 
-You have access to fresh web search results for the user's latest question.
-
-WEB RESULTS:
-{search_text}
-
-USER QUESTION:
+User Question:
 {body.message}
 
-Answer using the web results above when relevant.
+Optional Search Results:
+{search_text}
+
+Use the search results ONLY if they are relevant to the user's question.
+If they are unrelated, ignore them and answer normally.
+"""
 Do not say you lack real-time information or internet access.
 """
 
