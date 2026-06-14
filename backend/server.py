@@ -18,14 +18,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, EmailStr
 import google.generativeai as genai
-import os
-
 genai.configure(
     api_key=os.getenv("GEMINI_API_KEY")
 )
-
-for m in genai.list_models():
-    print(m.name)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -243,34 +238,35 @@ client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY")
 )
 
-async def gen_image(prompt: str) -> Optional[str]:
-    try:
-        logger.info("Generating image with Imagen 4 Fast: %s", prompt)
+import base64
 
-        response = client.models.generate_images(
-            model="imagen-4.0-fast-generate-001",
-            prompt=prompt,
-            config=types.GenerateImagesConfig(
-                number_of_images=1
-            )
+async def gen_image(prompt: str):
+    try:
+        model = genai.GenerativeModel(
+            "gemini-2.5-flash-image-preview"
+        )
+
+        response = model.generate_content(
+            prompt
         )
 
         if (
-            hasattr(response, "generated_images")
-            and response.generated_images
-            and len(response.generated_images) > 0
+            response.candidates
+            and response.candidates[0].content.parts
         ):
-            image_bytes = response.generated_images[0].image.image_bytes
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, "inline_data"):
+                    return base64.b64encode(
+                        part.inline_data.data
+                    ).decode("utf-8")
 
-            return base64.b64encode(
-                image_bytes
-            ).decode("utf-8")
-
-        logger.warning("No image returned from Imagen")
         return None
 
     except Exception as e:
-        logger.exception("Imagen generation failed: %s", e)
+        logger.exception(
+            "Image generation failed: %s",
+            e
+        )
         return None
 
 # ---- Auth: JWT ----
@@ -608,15 +604,6 @@ async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
 
 
 @api.get("/images")
-from google import genai
-from google.genai import types
-import base64
-import os
-from typing import Optional
-
-image_client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY")
-)
 
 async def gen_image(prompt: str) -> Optional[str]:
     try:
