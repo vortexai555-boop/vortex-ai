@@ -17,7 +17,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, EmailStr
-import google.generativeai as genai
+
 genai.configure(
     api_key=os.getenv("GEMINI_API_KEY")
 )
@@ -229,14 +229,10 @@ import os
 from typing import Optional
 
 import google.generativeai as genai
-from google.genai import types
+
 import base64
 import os
 from typing import Optional
-
-client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY")
-)
 
 import base64
 
@@ -605,34 +601,30 @@ async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
 
 @api.get("/images")
 
-async def gen_image(prompt: str) -> Optional[str]:
-    try:
-        logger.info("Generating image with Imagen 4 Fast: %s", prompt)
+import base64
 
-        response = image_client.models.generate_images(
-            model="imagen-4.0-fast-generate-001",
-            prompt=prompt,
-            config=types.GenerateImagesConfig(
-                number_of_images=1
-            )
+async def gen_image(prompt: str):
+    try:
+        model = genai.GenerativeModel(
+            "gemini-2.5-flash-image-preview"
         )
 
-        if (
-            hasattr(response, "generated_images")
-            and response.generated_images
-            and len(response.generated_images) > 0
-        ):
-            image_bytes = response.generated_images[0].image.image_bytes
+        response = model.generate_content(prompt)
 
-            return base64.b64encode(
-                image_bytes
-            ).decode("utf-8")
+        for candidate in response.candidates:
+            for part in candidate.content.parts:
+                if hasattr(part, "inline_data"):
+                    return base64.b64encode(
+                        part.inline_data.data
+                    ).decode("utf-8")
 
-        logger.warning("No image returned from Imagen")
         return None
 
     except Exception as e:
-        logger.exception("Imagen generation failed: %s", e)
+        logger.exception(
+            "Image generation failed: %s",
+            e
+        )
         return None
 
 @api.post("/logos/generate")
