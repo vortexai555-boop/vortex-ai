@@ -480,7 +480,7 @@ Do not say you lack real-time information or internet access.
     logger.debug("Prompt sent to LLM: %s", prompt[:2000])
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
 
         full_prompt = f"""
 SYSTEM:
