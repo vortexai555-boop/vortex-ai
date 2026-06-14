@@ -4,7 +4,12 @@ import os
 import uuid
 import logging
 import asyncio
-from openai import OpenAI
+import google.generativeai as genai
+import os
+import base64
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+genai.configure(api_key=GEMINI_API_KEY)
 from pathlib import Path
 from duckduckgo_search import DDGS
 from datetime import datetime, timezone, timedelta
@@ -221,28 +226,23 @@ async def web_search(query: str):
 
 
 async def gen_image(prompt: str) -> Optional[str]:
-   from openai import OpenAI
+ import google.generativeai as genai
+import base64
 import os
-import logging
-from typing import Optional
 
-logger = logging.getLogger(__name__)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
-
-async def gen_image(prompt: str) -> Optional[str]:
+async def gen_image(prompt: str):
     try:
-        response = client.images.generate(
-            model="gpt-image-1",
-            prompt=prompt,
-            size="1024x1024"
-        )
+        model = genai.GenerativeModel("gemini-2.0-flash-preview-image-generation")
 
-        image_base64 = response.data[0].b64_json
+        response = model.generate_content(prompt)
 
-        return image_base64
+        for part in response.parts:
+            if hasattr(part, "inline_data") and part.inline_data:
+                return base64.b64encode(part.inline_data.data).decode("utf-8")
+
+        return None
 
     except Exception as e:
         logger.exception("image gen failed: %s", e)
