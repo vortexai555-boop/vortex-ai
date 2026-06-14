@@ -22,6 +22,13 @@ import google.generativeai as genai
 genai.configure(
     api_key=os.getenv("GEMINI_API_KEY")
 )
+import google.generativeai as genai
+import os
+
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+for m in genai.list_models():
+    print(m.name)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
