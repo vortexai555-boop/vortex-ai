@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, EmailStr
 from google import genai
 from google.genai import types
+import base64
 image_client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY")
 )
@@ -239,31 +240,19 @@ import base64
 
 async def gen_image(prompt: str):
     try:
-        model = genai.GenerativeModel(
-            "gemini-2.5-flash-image-preview"
+        response = image_client.models.generate_images(
+            model="imagen-4.0-fast-generate-001",
+            prompt=prompt
         )
 
-        response = model.generate_content(
-            prompt
-        )
-
-        if (
-            response.candidates
-            and response.candidates[0].content.parts
-        ):
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, "inline_data"):
-                    return base64.b64encode(
-                        part.inline_data.data
-                    ).decode("utf-8")
+        if response.generated_images:
+            image_bytes = response.generated_images[0].image.image_bytes
+            return base64.b64encode(image_bytes).decode("utf-8")
 
         return None
 
     except Exception as e:
-        logger.exception(
-            "Image generation failed: %s",
-            e
-        )
+        logger.exception("Image generation failed: %s", e)
         return None
 
 # ---- Auth: JWT ----
@@ -497,23 +486,24 @@ If they are unrelated, ignore them and answer normally.
 
     logger.debug("Prompt sent to LLM: %s", prompt[:2000])
 
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
+   try:
+       full_prompt = f"""
+   SYSTEM:
+   {system}
+   USER:
+   {prompt}
+   """
 
-        full_prompt = f"""
-SYSTEM:
-{system}
+       response = ai_client.models.generate_content(
+           model="gemini-2.5-flash",
+           contents=full_prompt
+       )
 
-USER:
-{prompt}
-"""
+       reply = response.text
 
-        response = model.generate_content(full_prompt)
-        reply = response.text
-
-    except Exception as e:
-        logger.exception("Gemini error: %s", e)
-        reply = f"Error: {str(e)}"
+   except Exception as e:
+       logger.exception("Gemini error: %s", e)
+       reply = f"Error: {str(e)}"
 
     assistant_msg = {
         "role": "assistant",
@@ -603,18 +593,14 @@ async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
 @api.get("/images")
 async def gen_image(prompt: str):
     try:
-        model = genai.GenerativeModel(
-            "gemini-2.5-flash-image-preview"
+        response = image_client.models.generate_images(
+            model="imagen-4.0-fast-generate-001",
+            prompt=prompt
         )
 
-        response = model.generate_content(prompt)
-
-        for candidate in response.candidates:
-            for part in candidate.content.parts:
-                if hasattr(part, "inline_data"):
-                    return base64.b64encode(
-                        part.inline_data.data
-                    ).decode("utf-8")
+        if response.generated_images:
+            image_bytes = response.generated_images[0].image.image_bytes
+            return base64.b64encode(image_bytes).decode("utf-8")
 
         return None
 
