@@ -474,12 +474,12 @@ USER QUESTION:
 Answer using the web results above when relevant. Do not say you lack real-time information or internet access; the results above ARE your real-time information.
 """
 
-    logger.debug("Prompt sent to LLM: %s", prompt[:2000])
+       logger.debug("Prompt sent to LLM: %s", prompt[:2000])
 
-  try:
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
 
-    full_prompt = f"""
+        full_prompt = f"""
 SYSTEM:
 {system}
 
@@ -487,14 +487,18 @@ USER:
 {prompt}
 """
 
-    response = model.generate_content(full_prompt)
-    reply = response.text
+        response = model.generate_content(full_prompt)
+        reply = response.text
 
-except Exception as e:
-    logger.exception("Gemini error: %s", e)
-    reply = f"Error: {str(e)}"
+    except Exception as e:
+        logger.exception("Gemini error: %s", e)
+        reply = f"Error: {str(e)}"
 
-assistant_msg = {
+    assistant_msg = {
+        "role": "assistant",
+        "content": reply,
+        "ts": now_utc().isoformat()
+    }
     "role": "assistant",
     "content": reply,
     "ts": now_utc().isoformat()
