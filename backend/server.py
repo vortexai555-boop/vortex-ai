@@ -530,6 +530,8 @@ async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
         results = await asyncio.gather(
             *[gen_image(full_prompt) for _ in range(count)]
         )
+        logger.info("Results count: %d", len(results))
+        logger.info("Valid images count: %d", len([r for r in results if r])) 
     except Exception as e:
         logger.exception("Image generation error: %s", e)
         raise HTTPException(
