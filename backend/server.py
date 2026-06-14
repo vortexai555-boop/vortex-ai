@@ -549,6 +549,16 @@ async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
 
     await deduct_credits(user["user_id"], 2 * len(images))
     return {"images": images}
+    try:
+    results = await asyncio.gather(
+        *[gen_image(full_prompt) for _ in range(count)]
+    )
+except Exception as e:
+    logger.exception("Image generation error: %s", e)
+    raise HTTPException(
+        status_code=500,
+        detail=str(e)
+    )
 
 
 @api.get("/images")
