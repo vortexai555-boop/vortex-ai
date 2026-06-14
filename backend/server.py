@@ -18,11 +18,11 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, EmailStr
 import os
-import google.generativeai as genai
+from google import genai
 genai.configure(
     api_key=os.getenv("GEMINI_API_KEY")
 )
-import google.generativeai as genai
+from google import genai
 import os
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -231,7 +231,7 @@ async def web_search(query: str):
         return []
 
 
-import google.generativeai as genai
+from google import genai
 import base64
 import os
 from typing import Optional
