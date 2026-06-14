@@ -378,7 +378,6 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
         try:
             expression = body.message.strip()
 
-            # Only allow numbers and math operators
             if not re.match(r'^[0-9+\-*/().\s]+$', expression):
                 raise ValueError("Invalid expression")
 
@@ -399,7 +398,6 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
                 "reply": f"Calculator Error: {str(e)}"
             }
 
-    # Normal chat continues below
     tool = body.tool if body.tool in SYSTEM_PROMPTS else "chat"
     system = SYSTEM_PROMPTS[tool]
 
@@ -407,6 +405,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
 
     if not cid:
         cid = new_id("conv")
+
         await db.conversations.insert_one({
             "id": cid,
             "user_id": user["user_id"],
@@ -415,7 +414,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
             "messages": [],
             "created_at": now_utc().isoformat(),
             "updated_at": now_utc().isoformat(),
-          })
+        })
 
     user_msg = {
         "role": "user",
@@ -448,9 +447,11 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
 
     # Web Search
     search_results = []
+
     try:
         search_results = await web_search(body.message)
         logger.info("Search results count: %d", len(search_results))
+
     except Exception as e:
         logger.exception("Search failed: %s", e)
         search_results = []
@@ -461,7 +462,8 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
             for r in search_results[:5]
         ])
 
-        prompt = f"""{transcript}
+        prompt = f"""
+{transcript}
 
 You have access to fresh web search results for the user's latest question.
 
@@ -471,10 +473,11 @@ WEB RESULTS:
 USER QUESTION:
 {body.message}
 
-Answer using the web results above when relevant. Do not say you lack real-time information or internet access; the results above ARE your real-time information.
+Answer using the web results above when relevant.
+Do not say you lack real-time information or internet access.
 """
 
-         logger.debug("Prompt sent to LLM: %s", prompt[:2000])
+    logger.debug("Prompt sent to LLM: %s", prompt[:2000])
 
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
