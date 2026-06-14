@@ -220,16 +220,32 @@ async def web_search(query: str):
 
 
 async def gen_image(prompt: str) -> Optional[str]:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+   from openai import OpenAI
+import os
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
+
+async def gen_image(prompt: str) -> Optional[str]:
     try:
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=new_id("img"), system_message="You are a world class image generator.").with_model("gemini", IMAGE_MODEL).with_params(modalities=["image", "text"])
-        _text, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
-        if images and len(images) > 0:
-            return images[0]["data"]
+        response = client.images.generate(
+            model="gpt-image-1",
+            prompt=prompt,
+            size="1024x1024"
+        )
+
+        image_base64 = response.data[0].b64_json
+
+        return image_base64
+
     except Exception as e:
         logger.exception("image gen failed: %s", e)
-    return None
-
+        return None
 
 # ---- Auth: JWT ----
 @api.post("/auth/signup")
