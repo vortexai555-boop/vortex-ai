@@ -16,11 +16,13 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Respons
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, EmailStr
-
-genai.configure(
+image_client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY")
 )
+from pydantic import BaseModel, Field, EmailStr
+from google import genai
+from google.genai import types
+
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -223,12 +225,13 @@ async def web_search(query: str):
         return []
 
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import base64
 import os
 from typing import Optional
-
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 import base64
 import os
