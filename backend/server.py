@@ -4,12 +4,6 @@ import os
 import uuid
 import logging
 import asyncio
-import google.generativeai as genai
-import os
-import base64
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-genai.configure(api_key=GEMINI_API_KEY)
 from pathlib import Path
 from duckduckgo_search import DDGS
 from datetime import datetime, timezone, timedelta
@@ -23,6 +17,11 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, EmailStr
+import os
+import google.generativeai as genai
+genai.configure(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
