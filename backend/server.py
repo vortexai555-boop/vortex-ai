@@ -474,7 +474,7 @@ USER QUESTION:
 Answer using the web results above when relevant. Do not say you lack real-time information or internet access; the results above ARE your real-time information.
 """
 
-       logger.debug("Prompt sent to LLM: %s", prompt[:2000])
+         logger.debug("Prompt sent to LLM: %s", prompt[:2000])
 
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
@@ -499,23 +499,19 @@ USER:
         "content": reply,
         "ts": now_utc().isoformat()
     }
-    "role": "assistant",
-    "content": reply,
-    "ts": now_utc().isoformat()
-}
 
-await db.conversations.update_one(
-    {"id": cid, "user_id": user["user_id"]},
-    {
-        "$push": {"messages": assistant_msg},
-        "$set": {"updated_at": now_utc().isoformat()}
+    await db.conversations.update_one(
+        {"id": cid, "user_id": user["user_id"]},
+        {
+            "$push": {"messages": assistant_msg},
+            "$set": {"updated_at": now_utc().isoformat()}
+        }
+    )
+
+    return {
+        "conversation_id": cid,
+        "reply": reply
     }
-)
-
-return {
-    "conversation_id": cid,
-    "reply": reply
-}
 
 
 ASPECT_HINTS = {"1:1": "square 1:1", "16:9": "wide cinematic 16:9", "9:16": "vertical portrait 9:16", "4:3": "classic 4:3"}
