@@ -48,7 +48,7 @@ PRO_CREDITS = 2000
 ENTERPRISE_CREDITS = 99999
 
 CHAT_MODEL = ("anthropic", "claude-sonnet-4-5-20250929")
-IMAGE_MODEL = "gemini-3.1-flash-image-preview"
+IMAGE_MODEL = "imagen-4.0-fast-generate-001"
 
 app = FastAPI(title="VORTEX AI")
 api = APIRouter(prefix="/api")
@@ -235,42 +235,36 @@ from typing import Optional
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
 async def gen_image(prompt: str) -> Optional[str]:
     try:
-        logger.info("Generating image with prompt: %s", prompt)
-        logger.info(
-            "Gemini key loaded: %s",
-            bool(os.getenv("GEMINI_API_KEY"))
+        logger.info("Generating image with Imagen 4 Fast: %s", prompt)
+
+        response = client.models.generate_images(
+            model="imagen-4.0-fast-generate-001",
+            prompt=prompt,
+            config=types.GenerateImagesConfig(
+                number_of_images=1
+            ),
         )
 
-        model = genai.GenerativeModel(
-            "gemini-2.5-flash-image"
-        )
+        if (
+            hasattr(response, "generated_images")
+            and response.generated_images
+            and len(response.generated_images) > 0
+        ):
+            image_bytes = response.generated_images[0].image.image_bytes
 
-        response = model.generate_content(prompt)
+            return base64.b64encode(
+                image_bytes
+            ).decode("utf-8")
 
-        logger.info("Gemini response received")
-
-        # Debug entire response
-        logger.info("Response: %s", response)
-
-        if hasattr(response, "parts"):
-            for part in response.parts:
-                if (
-                    hasattr(part, "inline_data")
-                    and part.inline_data
-                    and part.inline_data.data
-                ):
-                    logger.info("Image data found")
-                    return base64.b64encode(
-                        part.inline_data.data
-                    ).decode("utf-8")
-
-        logger.warning("No image data found in Gemini response")
+        logger.warning("No image returned from Imagen")
         return None
 
     except Exception as e:
-        logger.exception("Image generation failed: %s", e)
+        logger.exception("Imagen generation failed: %s", e)
         return None
 
 # ---- Auth: JWT ----
