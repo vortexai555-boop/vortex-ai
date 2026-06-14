@@ -378,7 +378,10 @@ async def rename_conversation(cid: str, body: RenameIn, user=Depends(get_current
 import re
 
 @api.post("/chat/send")
-async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
+async def chat_send(
+    body: ChatMessageIn,
+    user=Depends(get_current_user)
+):
     await require_credits(user, 1)
 
     # Calculator mode
@@ -386,7 +389,7 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
         try:
             expression = body.message.strip()
 
-            if not re.match(r'^[0-9+\-*/().\s]+$', expression):
+            if not re.match(r"^[0-9+\-*/().\s]+$", expression):
                 raise ValueError("Invalid expression")
 
             result = eval(
@@ -445,15 +448,20 @@ async def chat_send(body: ChatMessageIn, user=Depends(get_current_user)):
 
     history = conv.get("messages", [])[-20:]
 
-      transcript = "\n".join(
+    transcript = "\n".join(
         [f"{m['role'].upper()}: {m['content']}" for m in history[:-1]]
     )
 
     # Web Search
     search_results = []
+
     try:
         search_results = await web_search(body.message)
-        logger.info("Search results count: %d", len(search_results))
+        logger.info(
+            "Search results count: %d",
+            len(search_results)
+        )
+
     except Exception as e:
         logger.exception("Search failed: %s", e)
         search_results = []
@@ -480,7 +488,10 @@ Use the search results ONLY if they are relevant to the user's question.
 If they are unrelated, ignore them and answer normally.
 """
 
-    logger.debug("Prompt sent to LLM: %s", prompt[:2000])
+    logger.debug(
+        "Prompt sent to LLM: %s",
+        prompt[:2000]
+    )
 
     try:
         full_prompt = f"""
@@ -512,7 +523,9 @@ USER:
         {"id": cid, "user_id": user["user_id"]},
         {
             "$push": {"messages": assistant_msg},
-            "$set": {"updated_at": now_utc().isoformat()}
+            "$set": {
+                "updated_at": now_utc().isoformat()
+            }
         }
     )
 
