@@ -592,7 +592,10 @@ async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
 
 @api.get("/images")
 async def list_images(user=Depends(get_current_user)):
-    return await db.images.find({"user_id": user["user_id"]}, {"_id": 0, "user_id": 0}).sort("created_at", -1).limit(40).to_list(40)
+    return await db.images.find(
+        {"user_id": user["user_id"]}, 
+        {"_id": 0, "user_id": 0}
+    ).sort("created_at", -1).limit(40).to_list(40)
 
 @api.post("/logos/generate")
 async def logos_generate(body: LogoGenIn, user=Depends(get_current_user)):
