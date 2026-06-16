@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, EmailStr
 from google import genai
 from google.genai import types
+import httpx
+import urllib.parse
 import base64
 
 ROOT_DIR = Path(__file__).parent
@@ -229,37 +231,33 @@ async def web_search(query: str):
 
 
 async def gen_image(prompt: str, aspect_ratio: str = "1:1"):
+    # Convert aspect ratios to width/height 
+    width, height = 1024, 1024
+    if aspect_ratio == "16:9":
+        width, height = 1024, 576
+    elif aspect_ratio == "9:16":
+        width, height = 576, 1024
+    elif aspect_ratio == "4:3":
+        width, height = 1024, 768
+    elif aspect_ratio == "3:4":
+        width, height = 768, 1024
+
+    # URL encode the prompt and assemble the Pollinations URL
+    encoded_prompt = urllib.parse.quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
+    
     try:
-        if aspect_ratio == "1:1":
-            ar_config = "1:1"
-        elif aspect_ratio == "16:9":
-            ar_config = "16:9"
-        elif aspect_ratio == "9:16":
-            ar_config = "9:16"
-        elif aspect_ratio == "4:3":
-            ar_config = "4:3"
-        elif aspect_ratio == "3:4":
-            ar_config = "3:4"
-        else:
-            ar_config = "1:1"
-
-        response = await ai_client.aio.models.generate_content(
-            model="gemini-2.5-flash-image",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                image_config=types.ImageConfig(
-                    aspect_ratio=ar_config
-                )
-            )
-        )
-
-        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if part.inline_data and part.inline_data.data:
-                    return base64.b64encode(part.inline_data.data).decode("utf-8")
-
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=60.0)
+            if response.status_code == 200:
+                # Return the base64 encoded image string for your frontend
+                return base64.b64encode(response.content).decode("utf-8")
+            else:
+                logger.error(f"Pollinations error: {response.status_code}")
+                return None
+    except Exception as e:
+        logger.exception("Image generation failed: %s", e)
         return None
-
     except Exception as e:
         logger.exception("Image generation failed: %s", e)
         raise e
