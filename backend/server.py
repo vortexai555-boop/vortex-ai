@@ -110,6 +110,13 @@ class WebsiteIn(BaseModel):
     description: str
     site_type: str = "landing"
 
+class ProductivityIn(BaseModel):
+    tool_id: str
+    prompt: Optional[str] = ""
+    input_text: Optional[str] = ""
+    file_data: Optional[str] = None
+    file_mime: Optional[str] = None
+
 
 def now_utc() -> datetime: return datetime.now(timezone.utc)
 def new_id(prefix: str = "id") -> str: return f"{prefix}_{uuid.uuid4().hex[:16]}"
