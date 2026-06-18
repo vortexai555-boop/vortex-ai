@@ -546,6 +546,75 @@ USER:
 
 ASPECT_HINTS = {"1:1": "square 1:1", "16:9": "wide cinematic 16:9", "9:16": "vertical portrait 9:16", "4:3": "classic 4:3"}
 
+@api.post("/productivity/generate")
+async def productivity_generate(body: ProductivityIn, user=Depends(get_current_user)):
+    await require_credits(user, 1)
+
+    system_instruction = "You are a helpful AI productivity assistant."
+    if body.tool_id == "document_writer":
+        system_instruction = "You are an expert AI document writer. Write comprehensive, well-structured, and clear documents based on the user's request."
+    elif body.tool_id == "resume_builder":
+        system_instruction = "You are an expert resume builder and career coach. Help the user write or improve their resume based on their input. Format your response clearly."
+    elif body.tool_id == "cover_letter":
+        system_instruction = "You are an expert cover letter generator. Write a professional, compelling, and tailored cover letter based on the user's details and job description."
+    elif body.tool_id == "email_writer":
+        system_instruction = "You are a professional email writer. Draft clear, polite, and effective emails based on the user's instructions."
+    elif body.tool_id == "grammar_checker":
+        system_instruction = "You are an expert grammar checker. Correct grammatical errors, improve sentence structure, and suggest better vocabulary for the provided text. Provide the corrected text directly."
+    elif body.tool_id == "text_summarizer":
+        system_instruction = "You are an expert text summarizer. Provide a concise, accurate, and readable summary of the provided text, capturing the key points."
+    elif body.tool_id == "translator":
+        system_instruction = "You are an expert translator. Translate the given text accurately."
+    elif body.tool_id == "meeting_notes":
+        system_instruction = "You are an expert at extracting and organizing meeting notes. Summarize the transcript or notes provided, highlight action items, key decisions, and follow-ups in a structured format."
+    elif body.tool_id == "pdf_qa" or body.tool_id == "ocr":
+        system_instruction = "You are an expert document analysis AI. Extract text accurately if asked for OCR, or answer questions based strictly on the content of the provided document."
+
+    user_prompt = f"Instructions: {body.prompt}\n\n" if body.prompt else ""
+    if body.input_text:
+        user_prompt += f"Input:\n{body.input_text}\n"
+
+    contents = []
+    if body.file_data and body.file_mime:
+        b64_data = body.file_data
+        if "base64," in b64_data:
+            b64_data = b64_data.split("base64,")[1]
+        try:
+            doc_bytes = base64.b64decode(b64_data)
+            contents.append(types.Part.from_bytes(data=doc_bytes, mime_type=body.file_mime))
+        except Exception as e:
+            logger.error("Failed to decode file: %s", e)
+
+    if user_prompt:
+        contents.append(user_prompt)
+    if not contents:
+        contents.append("Please provide input.")
+
+    try:
+        response = await ai_client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction
+            )
+        )
+        reply = response.text or ""
+        
+        await db.activities.insert_one({
+            "id": new_id("act"),
+            "user_id": user["id"],
+            "kind": "productivity",
+            "summary": f"{body.tool_id} used",
+            "created_at": now_utc().isoformat(),
+        })
+
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -1}})
+        
+        return {"result": reply}
+    except Exception as e:
+        logger.exception("Productivity generate error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api.post("/images/generate")
 async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
     count = max(1, min(body.count, 4))
