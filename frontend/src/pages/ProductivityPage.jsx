@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { 
   FileText, IdentificationCard, EnvelopeOpen, PaperPlaneTilt, 
-  TextAoutdent, ListDashes, Translate, Users, FilePdf, Scan,
+  TextAa, ListDashes, Translate, Users, FilePdf, Scan,
   ArrowLeft, UploadSimple, Copy, MagicWand, FileImage, Sparkle
 } from "@phosphor-icons/react";
 
@@ -13,7 +13,7 @@ const TOOLS = [
   { id: "resume_builder", name: "Resume Builder", description: "Format and improve your resume.", icon: IdentificationCard, needsFile: false, needsInputText: true, needsPrompt: false, inputTextLabel: "Your Current Resume / Details", btnText: "Build Resume" },
   { id: "cover_letter", name: "Cover Letter", description: "Generate a targeted cover letter.", icon: EnvelopeOpen, needsFile: false, needsInputText: true, needsPrompt: true, promptLabel: "Job Description", inputTextLabel:"Your Details / Resume", btnText: "Generate Letter" },
   { id: "email_writer", name: "Email Writer", description: "Draft polite and effective emails.", icon: PaperPlaneTilt, needsFile: false, needsInputText: false, needsPrompt: true, promptLabel: "What is the email about?", btnText: "Draft Email" },
-  { id: "grammar_checker", name: "Grammar Checker", description: "Fix typos and improve sentence structure.", icon: TextAoutdent, needsFile: false, needsInputText: true, needsPrompt: false, inputTextLabel: "Text to check", btnText: "Check Grammar" },
+  { id: "grammar_checker", name: "Grammar Checker", description: "Fix typos and improve sentence structure.", icon: TextAa, needsFile: false, needsInputText: true, needsPrompt: false, inputTextLabel: "Text to check", btnText: "Check Grammar" },
   { id: "text_summarizer", name: "Text Summarizer", description: "Condense long text into key points.", icon: ListDashes, needsFile: false, needsInputText: true, needsPrompt: false, inputTextLabel: "Text to summarize", btnText: "Summarize Text" },
   { id: "translator", name: "Translator", description: "Translate text accurately and idiomatically.", icon: Translate, needsFile: false, needsInputText: true, needsPrompt: true, promptLabel: "Target Language", inputTextLabel: "Text to translate", btnText: "Translate" },
   { id: "meeting_notes", name: "Meeting Notes", description: "Extract action items and key decisions.", icon: Users, needsFile: false, needsInputText: true, needsPrompt: false, inputTextLabel: "Meeting Transcript", btnText: "Generate Notes" },
