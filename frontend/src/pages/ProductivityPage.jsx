@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import api from "@/lib/api";
 import { 
   FileText, IdentificationCard, EnvelopeOpen, PaperPlaneTilt, 
   TextAa, ListDashes, Translate, Users, FilePdf, Scan,
@@ -22,7 +23,7 @@ const TOOLS = [
 ];
 
 export default function ProductivityPage() {
-  const { getToken, user } = useAuth();
+  const { user } = useAuth();
   const [activeTool, setActiveTool] = useState(null);
 
   const [prompt, setPrompt] = useState("");
@@ -80,30 +81,18 @@ export default function ProductivityPage() {
     setResult("");
 
     try {
-      const token = await getToken();
-      const res = await fetch("/api/productivity/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          tool_id: activeTool.id,
-          prompt,
-          input_text: inputText,
-          file_data: fileDataUrl,
-          file_mime: file?.type
-        })
+      const res = await api.post("/productivity/generate", {
+        tool_id: activeTool.id,
+        prompt,
+        input_text: inputText,
+        file_data: fileDataUrl,
+        file_mime: file?.type
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Generation failed.");
-      }
-      setResult(data.result);
+      setResult(res.data.result);
       toast.success("Done!");
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.response?.data?.detail || err.message || "Generation failed.");
     } finally {
       setLoading(false);
     }
