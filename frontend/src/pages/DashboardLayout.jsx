@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import VortexLogo from "@/components/VortexLogo";
 import { Button } from "@/components/ui/button";
 import { ChatCircleDots, House, User, Gear, SignOut, List, Globe, Image as ImageIcon, CreditCard, ShieldStar } from "@phosphor-icons/react";
+import { ChatCircleDots, House, User, Gear, SignOut, List, Globe, Image as ImageIcon, CreditCard, ShieldStar, MagicWand } from "@phosphor-icons/react";
 
 const NAV = [
   { to: "/dashboard", icon: House, label: "Home", testid: "nav-home" },
