@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Image as ImageIcon, Sparkle, DownloadSimple, X, MagnifyingGlassPlus,
+  Paperclip, Trash, FilePdf
 } from "@phosphor-icons/react";
 import { saveAs } from "file-saver";
 
@@ -51,6 +52,8 @@ export default function ImagePage() {
   const [results, setResults] = useState([]);
   const [history, setHistory] = useState([]);
   const [lightbox, setLightbox] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [dragActive, setDragActive] = useState(false);
 
   const loadHistory = async () => {
     try {
@@ -61,15 +64,75 @@ export default function ImagePage() {
 
   useEffect(() => { loadHistory(); }, []);
 
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
+  const addFiles = (selected) => {
+    const validFiles = selected.filter(f => f.size <= 20 * 1024 * 1024);
+    if (validFiles.length < selected.length) {
+      toast.error("Some files exceed the 20MB limit.");
+    }
+    const newAttachments = validFiles.map(f => {
+      let preview = null;
+      if (f.type.startsWith("image/")) {
+        preview = URL.createObjectURL(f);
+      }
+      return { file: f, preview };
+    });
+    setAttachments(prev => [...prev, ...newAttachments]);
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      addFiles(Array.from(e.target.files));
+    }
+    e.target.value = null; // reset input
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const generate = async () => {
     const p = prompt.trim();
-    if (!p || generating) return;
+    if ((!p && attachments.length === 0) || generating) return;
     const styleDef = STYLES.find((s) => s.v === style);
-    const fullPrompt = `${p}. Style: ${styleDef?.suffix || ""}`;
+    const fullPrompt = p ? `${p}. Style: ${styleDef?.suffix || ""}` : `Style: ${styleDef?.suffix || ""}`;
     setGenerating(true);
     setResults([]);
     try {
-      const r = await api.post("/images/generate", { prompt: fullPrompt, aspect_ratio: aspect, count });
+      let r;
+      if (attachments.length > 0) {
+        const formData = new FormData();
+        formData.append("prompt", fullPrompt);
+        formData.append("aspect_ratio", aspect);
+        formData.append("count", count);
+        attachments.forEach(a => formData.append("files[]", a.file));
+        r = await api.post("/images/generate", formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
+      } else {
+        r = await api.post("/images/generate", { prompt: fullPrompt, aspect_ratio: aspect, count });
+      }
+      
       setResults(r.data.images || []);
       toast.success(`Generated ${r.data.images.length} image${r.data.images.length === 1 ? "" : "s"}`);
       loadHistory();
@@ -101,8 +164,13 @@ export default function ImagePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
           {/* Input panel */}
-          <div className="lg:col-span-4">
-            <div className="glass rounded-2xl p-6 sticky top-6">
+          <div 
+            className="lg:col-span-4"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <div className={`glass rounded-2xl p-6 sticky top-6 transition-all ${dragActive ? "border-vortex-cyan border bg-vortex-cyan/5" : ""}`}>
               <div className="text-mono-accent">Describe your image</div>
               <Textarea
                 value={prompt}
@@ -111,6 +179,38 @@ export default function ImagePage() {
                 className="mt-3 min-h-[140px] bg-vortex-elevated border-white/10 focus-visible:ring-vortex-cyan resize-none"
                 data-testid="image-prompt-input"
               />
+
+              {attachments.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {attachments.map((a, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10 relative group">
+                      {a.preview ? (
+                        <img src={a.preview} alt="preview" className="w-12 h-12 object-cover rounded-md" />
+                      ) : (
+                        <div className="w-12 h-12 bg-white/10 flex items-center justify-center rounded-md">
+                           <FilePdf size={24} className="text-slate-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white truncate">{a.file.name}</div>
+                        <div className="text-xs text-slate-400">{(a.file.size / 1024 / 1024).toFixed(2)} MB</div>
+                      </div>
+                      <button onClick={() => removeAttachment(i)} className="text-slate-400 hover:text-red-400 p-2 transition-colors">
+                        <Trash size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="mt-3 flex justify-end">
+                <label className="cursor-pointer flex items-center gap-2 text-sm text-slate-400 hover:text-vortex-cyan transition-colors">
+                  <Paperclip size={18} />
+                  <span>Attach Image or PDF</span>
+                  <input type="file" multiple className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} />
+                </label>
+              </div>
+
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-mono-accent mb-2">Style</div>
@@ -146,7 +246,7 @@ export default function ImagePage() {
                   ))}
                 </div>
               </div>
-              <Button onClick={generate} disabled={generating || !prompt.trim()} className="mt-5 w-full h-12 btn-primary-vortex" data-testid="image-generate-btn">
+              <Button onClick={generate} disabled={generating || (!prompt.trim() && attachments.length === 0)} className="mt-5 w-full h-12 btn-primary-vortex" data-testid="image-generate-btn">
                 {generating ? "Generating…" : <><Sparkle size={16} weight="fill" className="mr-2" /> Generate</>}
               </Button>
               <div className="mt-3 text-xs text-slate-500">Costs 2 credits per image.</div>
