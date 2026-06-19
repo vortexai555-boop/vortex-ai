@@ -201,20 +201,25 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
 
 
 async def generate_text_free(messages: list) -> str:
-    import httpx
     try:
-        url = "https://text.pollinations.ai/openai/chat/completions"
-        payload = {
-            "model": "openai",
-            "messages": messages
-        }
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=payload, timeout=60.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                return data["choices"][0]["message"]["content"]
+        system = ""
+        prompt = ""
+        for m in messages:
+            if m["role"] == "system":
+                system += m["content"] + "\n"
             else:
-                raise Exception(f"Pollinations API error: {resp.status_code} {resp.text}")
+                prompt += m["content"] + "\n"
+                
+        config_kwargs = {}
+        if system.strip():
+            config_kwargs["system_instruction"] = system.strip()
+            
+        resp = await ai_client.aio.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt.strip(),
+            config=types.GenerateContentConfig(**config_kwargs)
+        )
+        return resp.text
     except Exception as e:
         logger.exception("Free text generation failed: %s", e)
         raise e
