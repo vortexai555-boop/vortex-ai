@@ -241,17 +241,26 @@ async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = N
         
         if files_data:
             pdf_files = [f for f in files_data if "pdf" in f["mimeType"].lower()]
-            if pdf_files:
-                pdf_parts = [{"inline_data": {"mime_type": f["mimeType"], "data": f["data"]}} for f in pdf_files]
+            image_files = [f for f in files_data if "image" in f["mimeType"].lower()]
+            
+            if pdf_files or image_files:
+                parts = []
+                for f in pdf_files:
+                    parts.append({"inline_data": {"mime_type": f["mimeType"], "data": f["data"]}})
+                for f in image_files:
+                    parts.append({"inline_data": {"mime_type": f["mimeType"], "data": f["data"]}})
+                
+                parts.append({"text": f"The user wants to generate a new image based on these reference files and their request: '{prompt}'. Please write a highly detailed visual description of what the final image should look like to fulfill their request, incorporating elements from the attached files. Respond ONLY with the final descriptive image generation prompt."})
+                
                 try:
-                    pdf_response = await ai_client.aio.models.generate_content(
+                    ai_response = await ai_client.aio.models.generate_content(
                         model="gemini-2.5-flash",
-                        contents={"parts": pdf_parts + [{"text": f"Extract the key textual information from this PDF based on this goal: {prompt}"}]}
+                        contents={"parts": parts}
                     )
-                    if pdf_response and pdf_response.text:
-                        final_prompt = f"User Request: {prompt}\n\nDocument Content Summary:\n{pdf_response.text}"
+                    if ai_response and ai_response.text:
+                        final_prompt = ai_response.text
                 except Exception as e:
-                    logger.warning(f"Failed to extract PDF text: {e}")
+                    logger.warning(f"Failed to extract text from files: {e}")
 
         import urllib.parse
         import random
