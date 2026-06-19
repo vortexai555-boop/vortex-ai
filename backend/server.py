@@ -192,34 +192,31 @@ def detect_image_mime(b64: str) -> str:
 
 
 async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None) -> str:
-    headers = {
-        "Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}",
-        "Content-Type": "application/json"
-    }
+    messages = [
+        {"role": "system", "content": f"{system}\nCurrent year is 2026. Current date is June 2026."},
+        {"role": "user", "content": user_text}
+    ]
+    return await generate_text_free(messages)
 
-  
-    payload = {
-        "model": "openai/gpt-4o-mini",
-        "messages": [
-           {"role": "system", "content": f"{system}\nCurrent year is 2026. Current date is June 2026."},
-           {
-    "role": "user",
-   "content": user_text
-}
-        ]
-    }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=20
-        )
-        
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
-
+async def generate_text_free(messages: list) -> str:
+    import httpx
+    try:
+        url = "https://text.pollinations.ai/openai/chat/completions"
+        payload = {
+            "model": "openai",
+            "messages": messages
+        }
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=payload, timeout=60.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data["choices"][0]["message"]["content"]
+            else:
+                raise Exception(f"Pollinations API error: {resp.status_code} {resp.text}")
+    except Exception as e:
+        logger.exception("Free text generation failed: %s", e)
+        raise e
 
 from duckduckgo_search import DDGS
 
@@ -240,27 +237,13 @@ async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = N
         final_prompt = prompt
         
         if files_data:
-            pdf_files = [f for f in files_data if "pdf" in f["mimeType"].lower()]
-            image_files = [f for f in files_data if "image" in f["mimeType"].lower()]
-            
-            if pdf_files or image_files:
-                parts = []
-                for f in pdf_files:
-                    parts.append({"inline_data": {"mime_type": f["mimeType"], "data": f["data"]}})
-                for f in image_files:
-                    parts.append({"inline_data": {"mime_type": f["mimeType"], "data": f["data"]}})
-                
-                parts.append({"text": f"The user wants to generate a new image based on these reference files and their request: '{prompt}'. Please write a highly detailed visual description of what the final image should look like to fulfill their request, incorporating elements from the attached files. Respond ONLY with the final descriptive image generation prompt."})
-                
-                try:
-                    ai_response = await ai_client.aio.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents={"parts": parts}
-                    )
-                    if ai_response and ai_response.text:
-                        final_prompt = ai_response.text
-                except Exception as e:
-                    logger.warning(f"Failed to extract text from files: {e}")
+            # We don't have free multimodal reading available.
+            # So we will just use the text generator to enhance the prompt
+            try:
+                enhance_prompt = f"The user wants to generate an image based on: '{prompt}'. They attached files but we cannot read them in the free tier. Please write a highly detailed visual description to fulfill their request textually. Respond ONLY with the final descriptive image generation prompt."
+                final_prompt = await generate_text_free([{"role": "user", "content": enhance_prompt}])
+            except Exception as e:
+                logger.warning(f"Failed to enhance prompt: {e}")
 
         import urllib.parse
         import random
@@ -540,26 +523,20 @@ If they are unrelated, ignore them and answer normally.
     )
 
     try:
-        full_prompt = f"""
-SYSTEM:
-{system}
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt}
+        ]
+        
+        reply = await generate_text_free(messages)
 
-USER:
-{prompt}
-"""
-
-        response = await ai_client.aio.models.generate_content(
-            model="gemini-3.5-flash",
-            contents=full_prompt
-        )
-
-        reply = response.text
         if not reply:
             reply = "No response from model."
 
     except Exception as e:
-        logger.exception("Gemini error: %s", e)
-        reply = f"Error: {str(e)}"
+        logger.exception("Text generation error: %s", e)
+        error_str = str(e)
+        reply = f"Error: {error_str}"
 
     assistant_msg = {
         "role": "assistant",
@@ -613,38 +590,30 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
     if body.input_text:
         user_prompt += f"Input:\n{body.input_text}\n"
 
-    contents = []
-    if body.file_data and body.file_mime:
-        b64_data = body.file_data
-        if "base64," in b64_data:
-            b64_data = b64_data.split("base64,")[1]
-        try:
-            doc_bytes = base64.b64decode(b64_data)
-            contents.append(types.Part.from_bytes(data=doc_bytes, mime_type=body.file_mime))
-        except Exception as e:
-            logger.error("Failed to decode file: %s", e)
-
-    if user_prompt:
-        contents.append(user_prompt)
-    if not contents:
-        contents.append("Please provide input.")
-
     try:
-        response = await ai_client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction
-            )
-        )
-        reply = response.text or ""
+        messages = [{"role": "system", "content": system_instruction}]
         
+        # Pollinations text only
+        prompt_with_files = ""
+        if body.file_data:
+            prompt_with_files += "\n[A document was attached but binary reading is disabled in free tier. Summarize based on request only.]\n"
+        if user_prompt:
+            prompt_with_files += user_prompt
+            
+        messages.append({"role": "user", "content": prompt_with_files or "Please provide input."})
+
+        reply = await generate_text_free(messages)
+        
+        if not reply:
+            reply = ""
+            
         await log_activity(user["user_id"], "productivity", f"{body.tool_id} used")
         await deduct_credits(user["user_id"], 1)
         
         return {"result": reply}
     except Exception as e:
         logger.exception("Productivity generate error: %s", e)
+        error_str = str(e)
         raise HTTPException(status_code=500, detail=str(e))
 
 @api.post("/images/generate")
