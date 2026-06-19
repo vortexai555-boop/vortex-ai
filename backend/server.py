@@ -523,8 +523,9 @@ If they are unrelated, ignore them and answer normally.
     )
 
     try:
+        current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Therefore, events from 2024, 2025, and 2026 are NOT in the future. You MUST use the provided search results to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
         messages = [
-            {"role": "system", "content": system},
+            {"role": "system", "content": system + current_date_info},
             {"role": "user", "content": prompt}
         ]
         
