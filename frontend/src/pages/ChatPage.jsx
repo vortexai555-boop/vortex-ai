@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import Markdown from "@/components/Markdown";
 import {
-  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check
+  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check, Globe
 } from "@phosphor-icons/react";
 import VortexLogo from "@/components/VortexLogo";
 
@@ -23,6 +23,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [renaming, setRenaming] = useState(null);
   const [renameVal, setRenameVal] = useState("");
+  const [webSearch, setWebSearch] = useState(false);
   const scrollRef = useRef(null);
 
   const loadConversations = async () => {
@@ -68,7 +69,7 @@ useEffect(() => {
     const optimistic = { role: "user", content: text, ts: new Date().toISOString() };
     setCurrent((c) => c ? { ...c, messages: [...(c.messages || []), optimistic] } : { id: null, messages: [optimistic], title: text.slice(0, 60) });
     try {
-      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat" });
+      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch });
       const newCid = r.data.conversation_id;
       const aiMsg = { role: "assistant", content: r.data.reply, ts: new Date().toISOString() };
       setCurrent((c) => ({ ...(c || {}), id: newCid, messages: [...(c?.messages || []), aiMsg] }));
@@ -298,6 +299,15 @@ useEffect(() => {
                 className="min-h-[44px] max-h-40 resize-none bg-transparent border-0 focus-visible:ring-0 text-base placeholder:text-slate-500"
                 data-testid="chat-input"
               />
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setWebSearch(!webSearch)}
+                className={`h-11 px-3 mt-auto ${webSearch ? 'text-vortex-cyan bg-vortex-cyan/10' : 'text-slate-500 hover:text-slate-300'}`}
+                title="Toggle Web Search"
+              >
+                <Globe size={20} weight={webSearch ? "fill" : "regular"} />
+              </Button>
               <Button type="submit" disabled={sending || !input.trim()} className="btn-primary-vortex h-11 px-5" data-testid="chat-send">
                 <PaperPlaneRight size={16} weight="fill" />
               </Button>
