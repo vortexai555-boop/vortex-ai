@@ -237,75 +237,59 @@ async def web_search(query: str):
 
 async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = None):
     try:
-        if aspect_ratio == "1:1":
-            ar_config = "1:1"
-        elif aspect_ratio == "16:9":
-            ar_config = "16:9"
-        elif aspect_ratio == "9:16":
-            ar_config = "9:16"
-        elif aspect_ratio == "4:3":
-            ar_config = "4:3"
-        elif aspect_ratio == "3:4":
-            ar_config = "3:4"
-        else:
-            ar_config = "1:1"
-
-        contents = []
+        final_prompt = prompt
+        
         if files_data:
             pdf_files = [f for f in files_data if "pdf" in f["mimeType"].lower()]
-            image_files = [f for f in files_data if "image" in f["mimeType"].lower()]
-            
-            extracted_text = ""
             if pdf_files:
                 pdf_parts = [{"inline_data": {"mime_type": f["mimeType"], "data": f["data"]}} for f in pdf_files]
                 try:
                     pdf_response = await ai_client.aio.models.generate_content(
-                        model="gemini-3.5-flash",
+                        model="gemini-2.5-flash",
                         contents={"parts": pdf_parts + [{"text": f"Extract the key textual information from this PDF based on this goal: {prompt}"}]}
                     )
                     if pdf_response and pdf_response.text:
-                        extracted_text = pdf_response.text
+                        final_prompt = f"User Request: {prompt}\n\nDocument Content Summary:\n{pdf_response.text}"
                 except Exception as e:
                     logger.warning(f"Failed to extract PDF text: {e}")
 
-            parts = []
-            for f in image_files:
-                parts.append({
-                    "inline_data": {
-                        "mime_type": f["mimeType"],
-                        "data": f["data"]
-                    }
-                })
+        import urllib.parse
+        import random
+        import httpx
+        import base64
+        
+        width, height = 1024, 1024
+        if aspect_ratio == "16:9":
+            width, height = 1024, 576
+        elif aspect_ratio == "9:16":
+            width, height = 576, 1024
+        elif aspect_ratio == "4:3":
+            width, height = 1024, 768
+        elif aspect_ratio == "3:4":
+            width, height = 768, 1024
+        elif aspect_ratio == "2:3":
+            width, height = 682, 1024
+
+        prompt_val = final_prompt[:1500]
+        if not prompt_val.strip():
+            prompt_val = "A cool aesthetic abstract image"
             
-            if extracted_text:
-                final_prompt = f"User Request: {prompt}\n\nDocument Content Summary:\n{extracted_text}"
-            else:
-                final_prompt = prompt
+        encoded_prompt = urllib.parse.quote(prompt_val)
+        seed = random.randint(1, 100000000)
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=60.0)
+            if resp.status_code == 200:
+                return base64.b64encode(resp.content).decode("utf-8")
                 
-            parts.append({"text": final_prompt})
-            contents = {"parts": parts}
-        else:
-            contents = prompt
-
-        response = await ai_client.aio.models.generate_content(
-            model="gemini-2.5-flash-image",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                image_config=types.ImageConfig(
-                    aspect_ratio=ar_config
-                )
-            )
-        )
-
-        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if part.inline_data and part.inline_data.data:
-                    return base64.b64encode(part.inline_data.data).decode("utf-8")
-
         return None
 
     except Exception as e:
         logger.exception("Image generation failed: %s", e)
+        error_str = str(e)
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            raise Exception("API rate limit exceeded. Please wait a minute and try again.")
         raise e
 
 # ---- Auth: JWT ----
