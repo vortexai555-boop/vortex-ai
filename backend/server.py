@@ -235,7 +235,7 @@ async def web_search(query: str):
         return []
 
 
-async def gen_image(prompt: str, aspect_ratio: str = "1:1"):
+async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = None):
     try:
         if aspect_ratio == "1:1":
             ar_config = "1:1"
@@ -250,9 +250,46 @@ async def gen_image(prompt: str, aspect_ratio: str = "1:1"):
         else:
             ar_config = "1:1"
 
+        contents = []
+        if files_data:
+            pdf_files = [f for f in files_data if "pdf" in f["mimeType"].lower()]
+            image_files = [f for f in files_data if "image" in f["mimeType"].lower()]
+            
+            extracted_text = ""
+            if pdf_files:
+                pdf_parts = [{"inline_data": {"mime_type": f["mimeType"], "data": f["data"]}} for f in pdf_files]
+                try:
+                    pdf_response = await ai_client.aio.models.generate_content(
+                        model="gemini-3.5-flash",
+                        contents={"parts": pdf_parts + [{"text": f"Extract the key textual information from this PDF based on this goal: {prompt}"}]}
+                    )
+                    if pdf_response and pdf_response.text:
+                        extracted_text = pdf_response.text
+                except Exception as e:
+                    logger.warning(f"Failed to extract PDF text: {e}")
+
+            parts = []
+            for f in image_files:
+                parts.append({
+                    "inline_data": {
+                        "mime_type": f["mimeType"],
+                        "data": f["data"]
+                    }
+                })
+            
+            if extracted_text:
+                final_prompt = f"User Request: {prompt}\n\nDocument Content Summary:\n{extracted_text}"
+            else:
+                final_prompt = prompt
+                
+            parts.append({"text": final_prompt})
+            contents = {"parts": parts}
+        else:
+            contents = prompt
+
         response = await ai_client.aio.models.generate_content(
             model="gemini-2.5-flash-image",
-            contents=prompt,
+            contents=contents,
             config=types.GenerateContentConfig(
                 image_config=types.ImageConfig(
                     aspect_ratio=ar_config
@@ -618,16 +655,42 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
         raise HTTPException(status_code=500, detail=str(e))
 
 @api.post("/images/generate")
-async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
-    count = max(1, min(body.count, 4))
+async def generate_image_api(request: Request, user=Depends(get_current_user)):
+    content_type = request.headers.get("content-type", "")
+    uploaded_files_data = []
+
+    if "multipart/form-data" in content_type:
+        form_data = await request.form()
+        prompt = form_data.get("prompt", "")
+        aspect_ratio = form_data.get("aspect_ratio", "1:1")
+        count_str = form_data.get("count", "1")
+        count = int(count_str) if count_str.isdigit() else 1
+        
+        files = form_data.getlist("files[]")
+        for f in files:
+            if hasattr(f, "filename") and f.filename:
+                data = await f.read()
+                if len(data) > 20 * 1024 * 1024:
+                    raise HTTPException(400, "File too large")
+                uploaded_files_data.append({
+                    "mimeType": f.content_type or "application/octet-stream",
+                    "data": base64.b64encode(data).decode('utf-8')
+                })
+    else:
+        body = await request.json()
+        prompt = body.get("prompt", "")
+        aspect_ratio = body.get("aspect_ratio", "1:1")
+        count = int(body.get("count", 1))
+
+    count = max(1, min(count, 4))
     await require_credits(user, 2 * count)
 
-    aspect_hint = ASPECT_HINTS.get(body.aspect_ratio, "square 1:1")
-    full_prompt = f"{body.prompt}, {aspect_hint}"
+    aspect_hint = ASPECT_HINTS.get(aspect_ratio, "square 1:1")
+    full_prompt = f"{prompt}, {aspect_hint}"
 
     try:
         results = await asyncio.gather(
-            *[gen_image(body.prompt, body.aspect_ratio) for _ in range(count)]
+            *[gen_image(prompt, aspect_ratio, uploaded_files_data) for _ in range(count)]
         )
         logger.info("Results count: %d", len(results))
         logger.info("Valid images count: %d", len([r for r in results if r])) 
@@ -649,10 +712,11 @@ async def generate_image_api(body: ImageGenIn, user=Depends(get_current_user)):
         rec = {
             "id": new_id("img"),
             "user_id": user["user_id"],
-            "prompt": body.prompt,
-            "aspect_ratio": body.aspect_ratio,
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
             "data": data,
             "mime": mime,
+            "has_attachments": bool(uploaded_files_data),
             "created_at": now_utc().isoformat(),
         }
 
