@@ -482,52 +482,29 @@ async def chat_send(
         [f"{m['role'].upper()}: {m['content']}" for m in history[:-1]]
     )
 
-    # Web Search
-    search_results = []
-
-    if body.web_search:
-        try:
-            search_results = await web_search(body.message)
-            logger.info("Search results count: %d", len(search_results))
-        except Exception as e:
-            logger.exception("Search failed: %s", e)
-            search_results = []
-
-    if search_results:
-        search_text = "\n".join([
-            f"- {r.get('title', '')}: {r.get('body', '')}"
-            for r in search_results[:5]
-        ])
-    else:
-        search_text = ""
-
-    prompt = f"""
-Previous Conversation:
-{transcript}
-
-User Question:
-{body.message}
-
-Optional Search Results:
-{search_text}
-
-Use the search results ONLY if they are relevant to the user's question.
-If they are unrelated, ignore them and answer normally.
-"""
-
-    logger.debug(
-        "Prompt sent to LLM: %s",
-        prompt[:2000]
-    )
-
+    current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Therefore, events from 2024, 2025, and 2026 are NOT in the future. You MUST use search tools to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
+    
     try:
-        current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Therefore, events from 2024, 2025, and 2026 are NOT in the future. You MUST use the provided search results to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
-        messages = [
-            {"role": "system", "content": system + current_date_info},
-            {"role": "user", "content": prompt}
-        ]
-        
-        reply = await generate_text_free(messages)
+        if body.web_search:
+            # Use Gemini with Google Search tool
+            gemini_prompt = f"Previous Conversation:\n{transcript}\n\nUser Question:\n{body.message}"
+            resp = await ai_client.aio.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=gemini_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system + current_date_info,
+                    tools=[{"google_search": {}}]
+                )
+            )
+            reply = resp.text
+        else:
+            # Use pollinations
+            prompt = f"Previous Conversation:\n{transcript}\n\nUser Question:\n{body.message}"
+            messages = [
+                {"role": "system", "content": system + current_date_info},
+                {"role": "user", "content": prompt}
+            ]
+            reply = await generate_text_free(messages)
 
         if not reply:
             reply = "No response from model."
@@ -590,18 +567,30 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
         user_prompt += f"Input:\n{body.input_text}\n"
 
     try:
-        messages = [{"role": "system", "content": system_instruction}]
-        
-        # Pollinations text only
-        prompt_with_files = ""
         if body.file_data:
-            prompt_with_files += "\n[A document was attached but binary reading is disabled in free tier. Summarize based on request only.]\n"
-        if user_prompt:
-            prompt_with_files += user_prompt
+            import base64
+            # Use Gemini API for multimodal reading
+            mime_type = body.file_mime or "application/pdf"
+            b64_data = body.file_data
+            if "," in b64_data:
+                b64_data = b64_data.split(",", 1)[1]
             
-        messages.append({"role": "user", "content": prompt_with_files or "Please provide input."})
-
-        reply = await generate_text_free(messages)
+            contents = [
+                system_instruction,
+                {"mime_type": mime_type, "data": base64.b64decode(b64_data)},
+                user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
+            ]
+            
+            resp = await ai_client.aio.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=contents
+            )
+            reply = resp.text
+        else:
+            messages = [{"role": "system", "content": system_instruction}]
+            prompt_with_files = user_prompt or "Please provide input."
+            messages.append({"role": "user", "content": prompt_with_files})
+            reply = await generate_text_free(messages)
         
         if not reply:
             reply = ""
