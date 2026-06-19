@@ -28,3 +28,10 @@ typer>=0.9.0
 duckduckgo-search
 google-generativeai
 google-genai
+paddleocr
+paddlepaddle
+opencv-python-headless
+Pillow
+numpy
+PyMuPDF
+pdf2image
