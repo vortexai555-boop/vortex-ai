@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import Markdown from "@/components/Markdown";
 import {
-  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle,
+  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check
 } from "@phosphor-icons/react";
 import VortexLogo from "@/components/VortexLogo";
 
@@ -113,6 +113,19 @@ useEffect(() => {
       if (current?.id === id) setCurrent((c) => ({ ...c, title: renameVal.trim() }));
     }
     setRenaming(null);
+  };
+
+  const [copiedIndex, setCopiedIndex] = useState(null);
+
+  const handleCopy = async (text, idx) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(idx);
+      toast.success("Message copied to clipboard!", { duration: 2000 });
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (e) {
+      toast.error("Failed to copy message.");
+    }
   };
 
   const exportConv = () => {
@@ -243,7 +256,16 @@ useEffect(() => {
                       <VortexLogo size={32} withText={false} />
                     </div>
                   )}
-                  <div className={`max-w-[80%] rounded-2xl px-5 py-3 ${m.role === "user" ? "bg-vortex-navy text-white border border-vortex-cyan/20" : "glass text-slate-100"}`}>
+                  <div className={`max-w-[80%] rounded-2xl px-5 py-3 ${m.role === "user" ? "bg-vortex-navy text-white border border-vortex-cyan/20" : "glass text-slate-100"} group relative`}>
+                    {m.role === "assistant" && (
+                      <button
+                        onClick={() => handleCopy(m.content, i)}
+                        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-700/50 rounded p-1.5"
+                        title="Copy message"
+                      >
+                        {copiedIndex === i ? <Check size={16} weight="bold" className="text-vortex-cyan" /> : <Copy size={16} />}
+                      </button>
+                    )}
                     {m.role === "assistant" ? <Markdown source={m.content} /> : <div className="whitespace-pre-wrap leading-relaxed">{m.content}</div>}
                   </div>
                 </motion.div>
