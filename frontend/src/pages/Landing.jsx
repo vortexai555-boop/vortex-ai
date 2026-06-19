@@ -5,7 +5,7 @@ import VortexLogo from "@/components/VortexLogo";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import Marquee from "react-fast-marquee";
-import { ChatCircleDots, Sparkle, ShieldCheck, Lightning, Globe, Code } from "@phosphor-icons/react";
+import { ChatCircleDots, Sparkle, ShieldCheck, Lightning, Globe, Code, MagicWand, FileText } from "@phosphor-icons/react";
 
 const HERO_BG = "https://images.pexels.com/photos/12707786/pexels-photo-12707786.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
 const AVATARS = [
@@ -21,6 +21,8 @@ const features = [
   { icon: Sparkle, title: "Premium models", text: "Built on the latest Claude reasoning models for accurate, nuanced, helpful answers." },
   { icon: Globe, title: "Anywhere, any device", text: "Mobile-first, glass dashboard. Continue your work from desktop, tablet or phone." },
   { icon: Code, title: "Developer ready", text: "Modular architecture designed to plug in more AI models and tools as you grow." },
+  { icon: MagicWand, title: "AI Image Generator", text: "Generate high quality images from text prompts with different styling options immediately." },
+  { icon: FileText, title: "Productivity Hub", text: "10 added features: Document Writer, Resume Builder, Cover Letter, Email Writer, Grammar Checker, Text Summarizer, Translator, Meeting Notes, PDF QA, OCR Extract." }
 ];
 
 const testimonials = [
@@ -130,9 +132,9 @@ export default function Landing() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
-              { name: "Free", price: "$0", desc: "Try Vortex with daily credits.", features: ["100 credits / month", "Chat with Claude Sonnet 4.5", "Save chat history"], cta: "Start Free", highlight: false },
-              { name: "Pro", price: "$29", desc: "For creators who ship daily.", features: ["2,000 credits / month", "Priority response speed", "Export conversations"], cta: "Upgrade to Pro", highlight: true },
-              { name: "Enterprise", price: "$99", desc: "Teams and power users.", features: ["Unlimited credits", "Premium support", "Team features (soon)"], cta: "Contact Sales", highlight: false },
+              { name: "Free", price: "0 rs", desc: "Try Vortex with daily credits.", features: ["100 credits / month", "Chat with Claude Sonnet 4.5", "Save chat history"], cta: "Start Free", highlight: false },
+              { name: "Pro", price: "299 rs", desc: "For creators who ship daily.", features: ["2,000 credits / month", "Priority response speed", "Export conversations"], cta: "Upgrade to Pro", highlight: true },
+              { name: "Enterprise", price: "499 rs", desc: "Teams and power users.", features: ["Unlimited credits", "Premium support", "Team features (soon)"], cta: "Contact Sales", highlight: false },
             ].map((p) => (
               <div
                 key={p.name}
@@ -191,7 +193,6 @@ export default function Landing() {
           </div>
           <Accordion type="single" collapsible className="space-y-3">
             {[
-              { q: "Which AI model powers Vortex?", a: "Claude Sonnet 4.5 by Anthropic, served through the Emergent universal LLM key." },
               { q: "Is my chat history private?", a: "Yes. Conversations are stored per user and isolated. We never share your data." },
               { q: "Can I sign in with Google?", a: "Yes, Vortex supports both Google OAuth and email/password authentication." },
               { q: "Do you offer a free tier?", a: "Absolutely. The Free plan gives you 100 credits per month — perfect to explore Vortex." },
