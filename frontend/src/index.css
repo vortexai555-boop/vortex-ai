@@ -36,7 +36,12 @@
 
 @layer base {
   * { border-color: rgba(255, 255, 255, 0.06); }
-  html, body, #root { height: 100%; }
+  html, body, #root { 
+    height: 100dvh;
+    width: 100vw;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     margin: 0;
     background-color: #030305;
@@ -45,6 +50,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
+    overscroll-behavior-y: none;
   }
   h1, h2, h3, h4, h5, h6 { font-family: "Outfit", system-ui, sans-serif; letter-spacing: -0.02em; }
   code, pre { font-family: "JetBrains Mono", ui-monospace, monospace; }
