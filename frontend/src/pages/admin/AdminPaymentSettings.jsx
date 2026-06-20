@@ -1,32 +1,24 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState, useEffect } from "react";
 import api from "@/lib/api";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { QrCode, UploadSimple, Trash } from "@phosphor-icons/react";
+import { Plus, PencilSimple, Trash, CheckCircle } from "@phosphor-icons/react";
 
-export default function AdminPaymentSettings() {
-  const [settings, setSettings] = useState(null);
+export default function AdminPlans() {
+  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const fileRef = useRef(null);
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({
+    id: "", name: "", price: 0, credits: 0, purchasable: false, features: ""
+  });
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const load = async () => {
     try {
-      const r = await api.get("/payment-settings");
-      setSettings({
-        qr_image: r.data.qr_image || "",
-        qr_mime: r.data.qr_mime || "image/png",
-        qr_enabled: r.data.qr_enabled !== false,
-        pro_price: r.data.pro_price ?? 29,
-        business_price: r.data.business_price ?? 99,
-        currency: r.data.currency || "USD",
-        instructions: r.data.instructions || "",
-      });
+      const { data } = await api.get("/plans");
+      setPlans(data);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -34,173 +26,179 @@ export default function AdminPaymentSettings() {
 
   useEffect(() => { load(); }, []);
 
-  const onFile = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (!f.type.startsWith("image/")) { toast.error("Please pick an image file"); return; }
-    if (f.size > 2 * 1024 * 1024) { toast.error("Image must be smaller than 2 MB"); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      const head = dataUrl.split(",")[0];
-      const mime = head.split(":")[1].split(";")[0];
-      const b64 = dataUrl.split(",")[1];
-      setSettings((s) => ({ ...s, qr_image: b64, qr_mime: mime }));
-    };
-    reader.readAsDataURL(f);
+  const handleEdit = (p) => {
+    setEditing(p.id);
+    setAdding(false);
+    setForm({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      credits: p.credits,
+      purchasable: p.purchasable,
+      features: (p.features || []).join(", ")
+    });
+    setError(""); MESSAGE("");
   };
 
-  const removeQr = async () => {
-    if (!window.confirm("Delete the current QR code?")) return;
-    try {
-      await api.delete("/admin/payment-settings/qr");
-      toast.success("QR removed");
-      setSettings((s) => ({ ...s, qr_image: "" }));
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || "Delete failed");
-    }
-  };
+  const MESSAGE = (msg) => { setMessage(msg); setTimeout(() => setMessage(""), 3000); };
 
-  const save = async () => {
-    setSaving(true);
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.id || !form.name) return setError("ID and name required");
     try {
       const payload = {
-        qr_enabled: settings.qr_enabled,
-        pro_price: Number(settings.pro_price),
-        business_price: Number(settings.business_price),
-        currency: settings.currency,
-        instructions: settings.instructions,
+        ...form,
+        price: Number(form.price),
+        credits: Number(form.credits),
+        features: form.features.split(",").map(s => s.trim()).filter(Boolean)
       };
-      if (settings.qr_image) {
-        payload.qr_image = settings.qr_image;
-        payload.qr_mime = settings.qr_mime;
-      }
-      await api.put("/admin/payment-settings", payload);
-      toast.success("Settings saved");
+      await api.post("/admin/plans", payload);
+      setEditing(null);
+      setAdding(false);
+      MESSAGE("Plan saved");
       load();
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || "Save failed");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Failed to save plan");
     }
   };
 
-  if (loading || !settings) {
-    return <div className="text-mono-accent">Loading…</div>;
-  }
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this plan?")) return;
+    try {
+      await api.delete(`/admin/plans/${id}`);
+      MESSAGE("Plan deleted");
+      load();
+    } catch (err) {
+      setError(err?.response?.data?.detail || "Failed to delete plan");
+    }
+  };
 
-  const qrSrc = settings.qr_image
-    ? (settings.qr_image.startsWith("data:") ? settings.qr_image : `data:${settings.qr_mime};base64,${settings.qr_image}`)
-    : null;
+  if (loading) return <div className="p-6">Loading plans...</div>;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="admin-settings-page">
-      {/* QR */}
-      <div className="glass rounded-2xl p-6">
-        <div className="text-mono-accent mb-1">Payment QR</div>
-        <h3 className="text-xl font-medium">Dynamic QR code</h3>
-        <p className="text-sm text-slate-400 mt-1">Users will see this on the payment page. Upload PNG/JPG up to 2 MB.</p>
-
-        <div className="mt-6 flex items-center justify-center min-h-[240px]">
-          {qrSrc ? (
-            <div className="bg-white rounded-2xl p-4 shadow-2xl">
-              <img src={qrSrc} alt="QR" className="w-48 h-48 object-contain" data-testid="admin-settings-qr-preview" />
-            </div>
-          ) : (
-            <div className="bg-white/[0.03] border border-dashed border-white/15 rounded-2xl p-10 text-center">
-              <QrCode size={36} className="mx-auto text-slate-500" />
-              <p className="mt-2 text-slate-500 text-sm">No QR uploaded</p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 flex items-center gap-3">
-          <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" data-testid="admin-settings-qr-file" />
-          <Button onClick={() => fileRef.current?.click()} className="btn-primary-vortex" data-testid="admin-settings-qr-upload">
-            <UploadSimple size={14} className="mr-1.5" /> {qrSrc ? "Replace QR" : "Upload QR"}
-          </Button>
-          {qrSrc && (
-            <Button variant="outline" onClick={removeQr} className="btn-ghost-vortex" data-testid="admin-settings-qr-remove">
-              <Trash size={14} className="mr-1.5" /> Remove
-            </Button>
-          )}
-        </div>
-
-        <div className="mt-6 flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-xl p-4">
-          <div>
-            <div className="text-sm font-medium">QR payments enabled</div>
-            <div className="text-xs text-slate-500">Toggle off to temporarily disable manual payments.</div>
-          </div>
-          <Switch
-            checked={settings.qr_enabled}
-            onCheckedChange={(v) => setSettings({ ...settings, qr_enabled: v })}
-            data-testid="admin-settings-qr-enabled"
-          />
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-medium">Subscription Plans</h2>
+        <button
+          onClick={() => {
+            setAdding(true); setEditing(null); setError("");
+            setForm({ id: "", name: "", price: 0, credits: 0, purchasable: true, features: "" });
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 bg-vortex-cyan text-black rounded hover:opacity-90 transition text-sm font-medium"
+        >
+          <Plus /> Add Plan
+        </button>
       </div>
 
-      {/* Prices */}
-      <div className="glass rounded-2xl p-6">
-        <div className="text-mono-accent mb-1">Pricing</div>
-        <h3 className="text-xl font-medium">Plan prices</h3>
-        <p className="text-sm text-slate-400 mt-1">Changes apply immediately to the public pricing page.</p>
+      {message && <div className="text-green-400 text-sm">{message}</div>}
+      {error && <div className="text-red-400 text-sm">{error}</div>}
 
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-slate-300 text-xs uppercase tracking-widest">Pro price</Label>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={settings.pro_price}
-              onChange={(e) => setSettings({ ...settings, pro_price: e.target.value })}
-              className="mt-2 h-11 bg-vortex-elevated border-white/10"
-              data-testid="admin-settings-pro-price"
-            />
+      {(adding || editing) && (
+        <div className="glass p-6 rounded-2xl border border-white/5 space-y-4 max-w-xl">
+          <h3 className="text-lg font-medium">{adding ? "New Plan" : "Edit Plan"}</h3>
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">Plan ID</label>
+                <input
+                  value={form.id} onChange={e => setForm({ ...form, id: e.target.value })}
+                  disabled={!adding}
+                  className="w-full bg-[#07080d] border border-white/10 rounded overflow-hidden px-3 py-2 text-sm focus:outline-none"
+                  placeholder="e.g. premium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">Plan Name</label>
+                <input
+                  value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                  className="w-full bg-[#07080d] border border-white/10 rounded overflow-hidden px-3 py-2 text-sm focus:outline-none"
+                  placeholder="e.g. Premium"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">Price (USD)</label>
+                <input
+                  type="number" step="0.01"
+                  value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
+                  className="w-full bg-[#07080d] border border-white/10 rounded overflow-hidden px-3 py-2 text-sm focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">Monthly Credits</label>
+                <input
+                  type="number"
+                  value={form.credits} onChange={e => setForm({ ...form, credits: e.target.value })}
+                  className="w-full bg-[#07080d] border border-white/10 rounded overflow-hidden px-3 py-2 text-sm focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+               <label className="flex items-center gap-2 mt-2">
+                 <input type="checkbox" checked={form.purchasable} onChange={e => setForm({ ...form, purchasable: e.target.checked })} />
+                 <span className="text-sm">Available for Purchase</span>
+               </label>
+            </div>
+
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">Features (comma-separated)</label>
+              <textarea
+                value={form.features} onChange={e => setForm({ ...form, features: e.target.value })}
+                className="w-full bg-[#07080d] border border-white/10 rounded overflow-hidden px-3 py-2 text-sm focus:outline-none h-20"
+                placeholder="Feature 1, Feature 2"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button type="submit" className="px-4 py-2 bg-vortex-cyan text-black rounded text-sm font-medium hover:opacity-90">
+                Save Plan
+              </button>
+              <button type="button" onClick={() => { setAdding(false); setEditing(null); }} className="px-4 py-2 hover:bg-white/5 rounded text-sm transition">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {plans.map(p => (
+          <div key={p.id} className="glass p-6 rounded-2xl border border-white/5 relative group">
+            <div className="absolute top-4 right-4 flex opacity-0 group-hover:opacity-100 transition">
+              <button onClick={() => handleEdit(p)} className="p-1.5 hover:text-white text-slate-400 transition"><PencilSimple size={16} /></button>
+              {!["free", "pro", "business", "enterprise"].includes(p.id) && (
+                <button onClick={() => handleDelete(p.id)} className="p-1.5 hover:text-red-400 text-slate-400 transition"><Trash size={16} /></button>
+              )}
+            </div>
+            <div className="text-xs text-vortex-cyan/80 font-mono mb-1">{p.id}</div>
+            <h3 className="text-2xl font-light">{p.name}</h3>
+            <div className="mt-2 flex items-end gap-2">
+              <span className="text-3xl">${p.price}</span>
+              <span className="text-sm text-slate-400 pb-1">/mo</span>
+            </div>
+            <div className="text-sm text-mono-accent mt-3">{p.credits} Credits / month</div>
+            
+            <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+               {p.features?.map((f, i) => (
+                 <div key={i} className="flex items-start gap-2 text-sm text-slate-300">
+                   <CheckCircle className="text-vortex-cyan shrink-0 mt-0.5" />
+                   <span>{f}</span>
+                 </div>
+               ))}
+            </div>
+
+            <div className="mt-4 flex">
+              {p.purchasable ? (
+                 <span className="text-xs bg-green-500/10 text-green-400 px-2 py-1 rounded">Purchasable</span>
+              ) : (
+                 <span className="text-xs bg-white/5 text-slate-400 px-2 py-1 rounded">Internal</span>
+              )}
+            </div>
           </div>
-          <div>
-            <Label className="text-slate-300 text-xs uppercase tracking-widest">Business price</Label>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={settings.business_price}
-              onChange={(e) => setSettings({ ...settings, business_price: e.target.value })}
-              className="mt-2 h-11 bg-vortex-elevated border-white/10"
-              data-testid="admin-settings-business-price"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <Label className="text-slate-300 text-xs uppercase tracking-widest">Currency</Label>
-          <Select value={settings.currency} onValueChange={(v) => setSettings({ ...settings, currency: v })}>
-            <SelectTrigger className="mt-2 h-11 bg-vortex-elevated border-white/10" data-testid="admin-settings-currency">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="USD">USD ($)</SelectItem>
-              <SelectItem value="INR">INR (₹)</SelectItem>
-              <SelectItem value="EUR">EUR (€)</SelectItem>
-              <SelectItem value="GBP">GBP (£)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="mt-4">
-          <Label className="text-slate-300 text-xs uppercase tracking-widest">Payment instructions</Label>
-          <Textarea
-            value={settings.instructions}
-            onChange={(e) => setSettings({ ...settings, instructions: e.target.value })}
-            placeholder="Scan the QR with your UPI app and complete payment…"
-            className="mt-2 min-h-[90px] bg-vortex-elevated border-white/10"
-            data-testid="admin-settings-instructions"
-          />
-        </div>
-
-        <Button onClick={save} disabled={saving} className="mt-6 w-full h-11 btn-primary-vortex" data-testid="admin-settings-save">
-          {saving ? "Saving…" : "Save settings"}
-        </Button>
+        ))}
       </div>
     </div>
   );
