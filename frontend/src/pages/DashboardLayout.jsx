@@ -97,7 +97,7 @@ export default function DashboardLayout() {
   );
 
   return (
-    <div className="flex h-screen bg-vortex-bg text-white">
+    <div className="flex h-[100dvh] bg-vortex-bg text-white overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden md:block">{SidebarInner}</div>
       {/* Mobile sidebar */}
