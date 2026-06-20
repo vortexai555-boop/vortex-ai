@@ -38,16 +38,16 @@ export default function ChatPage() {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const loadConversations = async () => {
+  const loadConversations = React.useCallback(async () => {
     try {
       const r = await api.get("/conversations");
       setConversations(r.data || []);
     } catch (_e) {
       /* ignore */
     }
-  };
+  }, []);
 
-  const loadConversation = async (id) => {
+  const loadConversation = React.useCallback(async (id) => {
     if (!id) { setCurrent(null); return; }
     try {
       const r = await api.get(`/conversations/${id}`);
@@ -55,7 +55,7 @@ export default function ChatPage() {
     } catch {
       navigate("/dashboard/chat");
     }
-  };
+  }, [navigate]);
   
  useEffect(() => {
   loadConversations();
