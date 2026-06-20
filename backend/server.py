@@ -972,6 +972,7 @@ class PlanIn(BaseModel):
     id: str  # e.g., 'free', 'pro'
     name: str
     price: float
+    currency: str = "USD"
     credits: int
     purchasable: bool
     features: List[str] = []
