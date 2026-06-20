@@ -77,11 +77,24 @@ useEffect(() => {
     if (!text || sending) return;
     setInput("");
     setSending(true);
+
+    const filesBase64 = await Promise.all(
+      attachments.map((file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve({ mime: file.type, data: reader.result.split(',')[1] });
+          reader.onerror = (error) => reject(error);
+        });
+      })
+    );
+    setAttachments([]);
+
     // Optimistic add
     const optimistic = { role: "user", content: text, ts: new Date().toISOString() };
     setCurrent((c) => c ? { ...c, messages: [...(c.messages || []), optimistic] } : { id: null, messages: [optimistic], title: text.slice(0, 60) });
     try {
-      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch });
+      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch, files: filesBase64 });
       const newCid = r.data.conversation_id;
       const aiMsg = { role: "assistant", content: r.data.reply, ts: new Date().toISOString() };
       setCurrent((c) => ({ ...(c || {}), id: newCid, messages: [...(c?.messages || []), aiMsg] }));
