@@ -13,7 +13,7 @@ export default function PaymentPage() {
   const { user, refresh } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const planParam = (searchParams.get("plan") || "pro").toLowerCase();
+  const planParam = searchParams.get("plan") || "pro";
   const [planId, setPlanId] = useState(planParam);
   const [plans, setPlans] = useState([]);
   const [settings, setSettings] = useState(null);
@@ -36,11 +36,12 @@ export default function PaymentPage() {
         setSettings(rSettings.data);
         setPlans(rPlans.data || []);
         
+        const foundPlan = rPlans.data && rPlans.data.find(p => p.id === planParam || p.id.toLowerCase() === planParam.toLowerCase());
         // If planParam is valid in dynamic plans, keep it, otherwise fallback to pro
-        if (rPlans.data && !rPlans.data.find(p => p.id === planParam) && planParam !== "pro" && planParam !== "business") {
+        if (rPlans.data && !foundPlan && planParam.toLowerCase() !== "pro" && planParam.toLowerCase() !== "business") {
           setPlanId("pro");
         } else {
-          setPlanId(planParam);
+          setPlanId(foundPlan ? foundPlan.id : planParam);
         }
       } finally {
         setLoading(false);
