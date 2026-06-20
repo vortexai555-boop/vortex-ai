@@ -104,7 +104,7 @@ export default function BillingPage() {
                   <h3 className="text-xl font-medium mb-2 uppercase">{p.name}</h3>
                   <div className="mt-4 flex items-end gap-2">
                     <span className="text-4xl font-light">
-                      {p.price > 0 ? (currency === "INR" ? "₹" : "$") + p.price : "Free"}
+                      {p.price > 0 ? ((p.currency || currency) === "INR" ? "₹" : "$") + p.price : "Free"}
                     </span>
                     {p.price > 0 && <span className="text-sm text-slate-400 mb-1">/ mo</span>}
                   </div>
