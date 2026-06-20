@@ -856,7 +856,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             {"$set": {"status": "error", "error": str(e)[:300], "completed_at": now_utc().isoformat()}},
         )
         # Refund credits on failure
-        await db.users.update_one({"user_id": user_id}, {"$inc": {"credits": 5}})
+        await db.users.update_one({"user_id": user_id}, {"$inc": {"credits": 3}})
 
 
 @api.get("/website/jobs/{job_id}")
@@ -1257,6 +1257,24 @@ async def admin_reject_payment(pid: str, admin=Depends(require_admin)):
 async def admin_list_subscriptions(_admin=Depends(require_admin)):
     docs = await db.subscriptions.find({}, {"_id": 0}).sort("start_date", -1).limit(500).to_list(500)
     return docs
+
+@api.delete("/admin/subscriptions/{sub_id}")
+async def admin_delete_subscription(sub_id: str, admin=Depends(require_admin)):
+    sub = await db.subscriptions.find_one({"id": sub_id})
+    if not sub:
+        raise HTTPException(404, "Subscription not found")
+    
+    await db.subscriptions.delete_one({"id": sub_id})
+    # Reset user to free plan
+    await db.users.update_one({"user_id": sub["user_id"]}, {"$set": {"plan": "free"}})
+    
+    await db.audit_log.insert_one({
+        "id": "aud_" + gen_id()[:8],
+        "ts": now_utc().isoformat(),
+        "admin_email": admin["email"],
+        "action": f"Deleted plan {sub['plan']} for user {sub['user_id']}"
+    })
+    return {"ok": True}
 
 
 # --- Admin: audit log ---
