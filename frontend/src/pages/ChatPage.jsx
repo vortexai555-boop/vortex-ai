@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import Markdown from "@/components/Markdown";
 import {
-  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check, Globe
+  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check, Globe, PlusCircle
 } from "@phosphor-icons/react";
 import VortexLogo from "@/components/VortexLogo";
 
@@ -290,6 +290,10 @@ useEffect(() => {
         <form onSubmit={send} className="border-t border-white/5 bg-vortex-surface/40 p-4">
           <div className="max-w-3xl mx-auto">
             <div className="glass-strong rounded-2xl p-2 flex items-end gap-2">
+              <label className="h-11 px-3 mt-auto flex items-center justify-center text-slate-500 hover:text-slate-300 cursor-pointer transition-colors" title="Upload file or image">
+                <PlusCircle size={24} weight="regular" />
+                <input type="file" multiple className="hidden" />
+              </label>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
