@@ -23,6 +23,7 @@ import AdminPayments from "@/pages/admin/AdminPayments";
 import AdminPaymentSettings from "@/pages/admin/AdminPaymentSettings";
 import AdminSubscriptions from "@/pages/admin/AdminSubscriptions";
 import AdminAudit from "@/pages/admin/AdminAudit";
+import AdminPlans from "@/pages/admin/AdminPlans";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 function AppRouter() {
@@ -56,6 +57,7 @@ function AppRouter() {
           <Route index element={<AdminPayments />} />
           <Route path="payments" element={<AdminPayments />} />
           <Route path="subscriptions" element={<AdminSubscriptions />} />
+          <Route path="plans" element={<AdminPlans />} />
           <Route path="settings" element={<AdminPaymentSettings />} />
           <Route path="audit" element={<AdminAudit />} />
         </Route>
