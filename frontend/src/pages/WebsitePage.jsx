@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Globe, Sparkle, Code as CodeIcon, DownloadSimple, ArrowsClockwise, ClipboardText, MonitorPlay,
+  Globe, Sparkle, Code as CodeIcon, DownloadSimple, ArrowsClockwise, ClipboardText, MonitorPlay, PlusCircle
 } from "@phosphor-icons/react";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -133,14 +133,22 @@ export default function WebsitePage() {
           {/* Input panel */}
           <div className="lg:col-span-4">
             <div className="glass rounded-2xl p-6 sticky top-6">
-              <div className="text-mono-accent">Describe your website</div>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. A modern landing page for a coffee subscription brand called Brewly..."
-                className="mt-3 min-h-[140px] bg-vortex-elevated border-white/10 focus-visible:ring-vortex-cyan resize-none"
-                data-testid="website-prompt-input"
-              />
+              <div className="text-mono-accent mb-2">Describe your website</div>
+              <div className="relative">
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. A modern landing page for a coffee subscription brand called Brewly..."
+                  className="mt-3 min-h-[140px] pb-12 bg-vortex-elevated border-white/10 focus-visible:ring-vortex-cyan resize-none"
+                  data-testid="website-prompt-input"
+                />
+                <div className="absolute left-2 bottom-2">
+                  <label className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
+                    <PlusCircle size={20} weight="regular" />
+                    <input type="file" multiple className="hidden" />
+                  </label>
+                </div>
+              </div>
               <div className="mt-4">
                 <div className="text-mono-accent mb-2">Site type</div>
                 <Select value={siteType} onValueChange={setSiteType}>
