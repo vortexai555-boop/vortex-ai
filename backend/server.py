@@ -856,7 +856,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             {"$set": {"status": "error", "error": str(e)[:300], "completed_at": now_utc().isoformat()}},
         )
         # Refund credits on failure
-        await db.users.update_one({"user_id": user_id}, {"$inc": {"credits": 3}})
+        await db.users.update_one({"user_id": user_id}, {"$inc": {"credits": 5}})
 
 
 @api.get("/website/jobs/{job_id}")
