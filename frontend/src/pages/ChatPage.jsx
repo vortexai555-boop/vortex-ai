@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import Markdown from "@/components/Markdown";
 import {
-  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check, Globe, PlusCircle
+  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check, Globe, PlusCircle, X
 } from "@phosphor-icons/react";
 import VortexLogo from "@/components/VortexLogo";
 
@@ -24,7 +24,19 @@ export default function ChatPage() {
   const [renaming, setRenaming] = useState(null);
   const [renameVal, setRenameVal] = useState("");
   const [webSearch, setWebSearch] = useState(false);
+  const [attachments, setAttachments] = useState([]);
   const scrollRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    if (e.target.files) {
+      setAttachments((prev) => [...prev, ...Array.from(e.target.files)]);
+    }
+    e.target.value = null; // reset
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const loadConversations = async () => {
     try {
@@ -289,10 +301,22 @@ useEffect(() => {
 
         <form onSubmit={send} className="border-t border-white/5 bg-vortex-surface/40 p-4">
           <div className="max-w-3xl mx-auto">
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {attachments.map((file, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full text-xs text-slate-300">
+                    <span className="truncate max-w-[120px]">{file.name}</span>
+                    <button type="button" onClick={() => removeAttachment(i)} className="text-slate-400 hover:text-white">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="glass-strong rounded-2xl p-2 flex items-end gap-2">
               <label className="h-11 px-3 mt-auto flex items-center justify-center text-slate-500 hover:text-slate-300 cursor-pointer transition-colors" title="Upload file or image">
                 <PlusCircle size={24} weight="regular" />
-                <input type="file" multiple className="hidden" />
+                <input type="file" multiple className="hidden" onChange={handleFileChange} />
               </label>
               <Textarea
                 value={input}
