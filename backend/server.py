@@ -127,7 +127,7 @@ def verify_pw(pw: str, hashed: str) -> bool:
     except Exception: return False
 
 def make_jwt(user_id: str) -> str:
-    payload = {"sub": user_id, "iat": int(now_utc().timestamp()), "exp": int((now_utc() + timedelta(days=7)).timestamp())}
+    payload = {"sub": user_id, "iat": int(now_utc().timestamp()), "exp": int((now_utc() + timedelta(days=36500)).timestamp())}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 def decode_jwt(token: str) -> Optional[str]:
@@ -161,6 +161,23 @@ async def get_current_user(request: Request, authorization: Optional[str] = Head
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+
+    should_update = True
+    last_active = user.get("last_active_at")
+    if last_active:
+        last_active_dt = datetime.fromisoformat(last_active)
+        if last_active_dt.tzinfo is None:
+            last_active_dt = last_active_dt.replace(tzinfo=timezone.utc)
+        if now_utc() - last_active_dt > timedelta(days=15):
+            raise HTTPException(status_code=401, detail="Session expired due to inactivity")
+        if now_utc() - last_active_dt < timedelta(hours=1):
+            should_update = False
+
+    if should_update:
+        now_str = now_utc().isoformat()
+        await db.users.update_one({"user_id": user_id}, {"$set": {"last_active_at": now_str}})
+        user["last_active_at"] = now_str
+
     return user
 
 async def require_credits(user: Dict[str, Any], cost: int = 1):
@@ -362,10 +379,10 @@ async def google_session(response: Response, x_session_id: Optional[str] = Heade
         })
     await db.user_sessions.insert_one({
         "user_id": user_id, "session_token": data["session_token"],
-        "expires_at": (now_utc() + timedelta(days=7)).isoformat(),
+        "expires_at": (now_utc() + timedelta(days=36500)).isoformat(),
         "created_at": now_utc().isoformat(),
     })
-    response.set_cookie(key="session_token", value=data["session_token"], httponly=True, secure=True, samesite="none", max_age=7*24*60*60, path="/")
+    response.set_cookie(key="session_token", value=data["session_token"], httponly=True, secure=True, samesite="none", max_age=36500*24*60*60, path="/")
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return {"user": user, "session_token": data["session_token"]}
 
