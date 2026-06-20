@@ -166,10 +166,18 @@ export default function ProductivityPage() {
                 <div className="absolute left-2 bottom-2">
                   <label className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
                     <PlusCircle size={20} weight="regular" />
-                    <input type="file" multiple className="hidden" />
+                    <input type="file" className="hidden" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
+              {file && (
+                <div className="mt-2 flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full text-xs text-slate-300 w-fit">
+                  <span className="truncate max-w-[120px]">{file.name}</span>
+                  <button type="button" onClick={() => {setFile(null); setFileDataUrl(null);}} className="text-slate-400 hover:text-white">
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -188,10 +196,18 @@ export default function ProductivityPage() {
                 <div className="absolute left-2 bottom-2">
                   <label className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
                     <PlusCircle size={20} weight="regular" />
-                    <input type="file" multiple className="hidden" />
+                    <input type="file" className="hidden" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
+              {file && !activeTool.needsPrompt && (
+                <div className="mt-2 flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full text-xs text-slate-300 w-fit">
+                  <span className="truncate max-w-[120px]">{file.name}</span>
+                  <button type="button" onClick={() => {setFile(null); setFileDataUrl(null);}} className="text-slate-400 hover:text-white">
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
