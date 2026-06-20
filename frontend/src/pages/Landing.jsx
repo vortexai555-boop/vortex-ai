@@ -71,18 +71,36 @@ export default function Landing() {
             <p className="mt-8 text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
               A premium AI assistant with the elegance of a flagship product. Ask, learn, build — with Claude Sonnet 4.5 under the hood.
             </p>
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+
+            {/* Simulated Chat Input Box */}
+            <div className="mt-10 max-w-2xl mx-auto bg-black/40 backdrop-blur-md rounded-2xl p-2 pl-5 flex items-center gap-3 border border-white/10 shadow-[0_0_30px_-10px_rgba(0,240,255,0.2)] transition-all focus-within:border-[#00F0FF]/50 focus-within:shadow-[0_0_50px_-10px_rgba(0,240,255,0.3)]">
+              <Sparkle size={24} className="text-[#00F0FF] shrink-0" weight="duotone" />
+              <input 
+                type="text" 
+                placeholder="Ask VORTEX anything..." 
+                className="flex-1 bg-transparent border-none text-white text-base outline-none focus:ring-0 placeholder:text-slate-500 w-full"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    window.location.href = '/signup';
+                  }
+                }}
+              />
               <Link to="/signup">
-                <Button size="lg" className="btn-primary-vortex h-12 px-8 text-base rounded-full" data-testid="hero-cta-start">
-                  Start Free
+                <Button size="lg" className="btn-primary-vortex h-12 px-6 text-base rounded-xl">
+                  Send Message
                 </Button>
               </Link>
-              <a href="#features">
-                <Button size="lg" variant="outline" className="btn-ghost-vortex h-12 px-8 text-base rounded-full" data-testid="hero-cta-demo">
-                  Watch Demo
-                </Button>
-              </a>
             </div>
+
+            {/* Quick Action Suggestions */}
+            <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
+              {["Write a product spec", "Debug some React code", "Generate a landscape image"].map((suggestion) => (
+                <Link key={suggestion} to="/signup" className="text-xs text-slate-400 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full px-4 py-2 transition-colors cursor-pointer">
+                  {suggestion}
+                </Link>
+              ))}
+            </div>
+
             <div className="mt-10 text-mono-accent text-[10px]">Trusted by builders worldwide</div>
             <div className="mt-3 flex items-center justify-center gap-6 text-slate-500 text-sm">
               <span>★★★★★ 4.9/5</span>
