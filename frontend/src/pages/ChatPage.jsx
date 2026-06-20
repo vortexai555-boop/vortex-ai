@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import Markdown from "@/components/Markdown";
 import {
-  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check, Globe
+  PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check, Globe, PlusCircle, X
 } from "@phosphor-icons/react";
 import VortexLogo from "@/components/VortexLogo";
 
@@ -24,18 +24,30 @@ export default function ChatPage() {
   const [renaming, setRenaming] = useState(null);
   const [renameVal, setRenameVal] = useState("");
   const [webSearch, setWebSearch] = useState(false);
+  const [attachments, setAttachments] = useState([]);
   const scrollRef = useRef(null);
 
-  const loadConversations = async () => {
+  const handleFileChange = (e) => {
+    if (e.target.files) {
+      setAttachments((prev) => [...prev, ...Array.from(e.target.files)]);
+    }
+    e.target.value = null; // reset
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const loadConversations = React.useCallback(async () => {
     try {
       const r = await api.get("/conversations");
       setConversations(r.data || []);
     } catch (_e) {
       /* ignore */
     }
-  };
+  }, []);
 
-  const loadConversation = async (id) => {
+  const loadConversation = React.useCallback(async (id) => {
     if (!id) { setCurrent(null); return; }
     try {
       const r = await api.get(`/conversations/${id}`);
@@ -43,7 +55,7 @@ export default function ChatPage() {
     } catch {
       navigate("/dashboard/chat");
     }
-  };
+  }, [navigate]);
   
  useEffect(() => {
   loadConversations();
@@ -53,11 +65,30 @@ useEffect(() => {
   loadConversation(cid);
 }, [cid, loadConversation]);
 
-useEffect(() => {
-  if (scrollRef.current) {
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }
-}, [current?.messages, sending]);
+  // Auto-scroll logic
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    // User is at bottom if they are within 100px of the bottom
+    const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setIsAtBottom(atBottom);
+  };
+
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "auto",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isAtBottom) {
+      scrollToBottom();
+    }
+  }, [current?.messages, sending, isAtBottom]);
   
   const send = async (e) => {
     e?.preventDefault();
@@ -65,11 +96,24 @@ useEffect(() => {
     if (!text || sending) return;
     setInput("");
     setSending(true);
+
+    const filesBase64 = await Promise.all(
+      attachments.map((file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve({ mime: file.type, data: reader.result.split(',')[1] });
+          reader.onerror = (error) => reject(error);
+        });
+      })
+    );
+    setAttachments([]);
+
     // Optimistic add
     const optimistic = { role: "user", content: text, ts: new Date().toISOString() };
     setCurrent((c) => c ? { ...c, messages: [...(c.messages || []), optimistic] } : { id: null, messages: [optimistic], title: text.slice(0, 60) });
     try {
-      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch });
+      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch, files: filesBase64 });
       const newCid = r.data.conversation_id;
       const aiMsg = { role: "assistant", content: r.data.reply, ts: new Date().toISOString() };
       setCurrent((c) => ({ ...(c || {}), id: newCid, messages: [...(c?.messages || []), aiMsg] }));
@@ -216,7 +260,7 @@ useEffect(() => {
           </div>
         </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin">
+        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="max-w-3xl mx-auto px-6 py-8">
             {!current?.messages?.length && (
               <div className="text-center py-16">
@@ -289,7 +333,23 @@ useEffect(() => {
 
         <form onSubmit={send} className="border-t border-white/5 bg-vortex-surface/40 p-4">
           <div className="max-w-3xl mx-auto">
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {attachments.map((file, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full text-xs text-slate-300">
+                    <span className="truncate max-w-[120px]">{file.name}</span>
+                    <button type="button" onClick={() => removeAttachment(i)} className="text-slate-400 hover:text-white">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="glass-strong rounded-2xl p-2 flex items-end gap-2">
+              <label className="h-11 px-3 mt-auto flex items-center justify-center text-slate-500 hover:text-slate-300 cursor-pointer transition-colors" title="Upload file or image">
+                <PlusCircle size={24} weight="regular" />
+                <input type="file" multiple className="hidden" onChange={handleFileChange} />
+              </label>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -312,10 +372,7 @@ useEffect(() => {
                 <PaperPlaneRight size={16} weight="fill" />
               </Button>
             </div>
-            <div className="mt-2 text-[11px] text-slate-500 text-center flex flex-col items-center gap-1">
-              {!webSearch && <span className="text-vortex-cyan/70">Tip: Turn on the Web Search toggle (globe icon) for accurate answers to current events.</span>}
-              <span>Vortex can make mistakes. Verify important info.</span>
-            </div>
+            <div className="mt-2 text-[11px] text-slate-500 text-center">Vortex can make mistakes. Verify important info.</div>
           </div>
         </form>
       </section>
