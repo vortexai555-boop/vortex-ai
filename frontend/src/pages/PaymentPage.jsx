@@ -36,12 +36,13 @@ export default function PaymentPage() {
         setSettings(rSettings.data);
         setPlans(rPlans.data || []);
         
-        const foundPlan = rPlans.data && rPlans.data.find(p => p.id === planParam || p.id.toLowerCase() === planParam.toLowerCase());
-        // If planParam is valid in dynamic plans, keep it, otherwise fallback to pro
-        if (rPlans.data && !foundPlan && planParam.toLowerCase() !== "pro" && planParam.toLowerCase() !== "business") {
-          setPlanId("pro");
+        const decodedParam = decodeURIComponent(planParam);
+        const foundPlan = rPlans.data && rPlans.data.find(p => p.id === planParam || p.id === decodedParam || p.id.toLowerCase() === planParam.toLowerCase() || p.name.toLowerCase() === planParam.toLowerCase());
+        
+        if (foundPlan) {
+          setPlanId(foundPlan.id);
         } else {
-          setPlanId(foundPlan ? foundPlan.id : planParam);
+          setPlanId(decodedParam);
         }
       } finally {
         setLoading(false);
@@ -165,6 +166,10 @@ export default function PaymentPage() {
                 <div className="bg-white/[0.03] border border-white/5 rounded-lg p-3">
                   <div className="text-mono-accent mb-1">Amount</div>
                   <div className="font-medium" data-testid="payment-amount">{currencySymbol}{price}</div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/5 rounded-lg p-3 col-span-2">
+                  <div className="text-mono-accent mb-1">Credits Included</div>
+                  <div className="font-medium" data-testid="payment-credits">{activePlanObj.credits?.toLocaleString() ?? 0}</div>
                 </div>
               </div>
             </div>
