@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BACKEND_URL = "https://Grexo-AI-9vtl.onrender.com";
+const BACKEND_URL = "https://vortex-ai-9vtl.onrender.com";
 export const API = `${BACKEND_URL}/api`;
 
 const api = axios.create({ baseURL: API, withCredentials: true });
