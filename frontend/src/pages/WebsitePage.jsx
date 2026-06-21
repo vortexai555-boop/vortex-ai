@@ -129,16 +129,16 @@ export default function WebsitePage() {
   const downloadHtml = () => {
     if (!current?.html) return;
     const blob = new Blob([current.html], { type: "text/html" });
-    saveAs(blob, `Grexo-site-${current.id || Date.now()}.html`);
+    saveAs(blob, `grexo-site-${current.id || Date.now()}.html`);
   };
 
   const downloadZip = async () => {
     if (!current?.html) return;
     const zip = new JSZip();
     zip.file("index.html", current.html);
-    zip.file("README.md", `# GREXO AI Generated Site\n\nPrompt: ${current.description || description}\nGenerated: ${new Date().toISOString()}\n\n## To preview\nOpen index.html in any browser.\n`);
+    zip.file("README.md", `# grexo ai Generated Site\n\nPrompt: ${current.description || description}\nGenerated: ${new Date().toISOString()}\n\n## To preview\nOpen index.html in any browser.\n`);
     const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, `Grexo-site-${current.id || Date.now()}.zip`);
+    saveAs(blob, `grexo-site-${current.id || Date.now()}.zip`);
   };
 
   const openHistory = async (item) => {
@@ -176,20 +176,20 @@ export default function WebsitePage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g. A modern landing page for a coffee subscription brand called Brewly..."
-                  className="mt-3 min-h-[140px] pb-12 bg-Grexo-elevated border-white/10 focus-visible:ring-Grexo-cyan resize-none"
+                  className="mt-3 min-h-[140px] pb-12 bg-grexo-elevated border-white/10 focus-visible:ring-grexo-cyan resize-none"
                   data-testid="website-prompt-input"
                 />
                 <div className="absolute left-2 bottom-2">
-                  <label className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
-                    <PlusCircle size={20} weight="regular" />
-                    <input type="file" multiple className="hidden" onChange={handleFileChange} />
+                  <label htmlFor="file-upload-website" className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
+                    <PlusCircle size={20} weight="regular" className="pointer-events-none" />
+                    <input id="file-upload-website" type="file" multiple accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
               <div className="mt-4">
                 <div className="text-mono-accent mb-2">Site type</div>
                 <Select value={siteType} onValueChange={setSiteType}>
-                  <SelectTrigger className="bg-Grexo-elevated border-white/10 h-11" data-testid="website-type-select">
+                  <SelectTrigger className="bg-grexo-elevated border-white/10 h-11" data-testid="website-type-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -199,7 +199,7 @@ export default function WebsitePage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={generate} disabled={generating || !description.trim()} className="mt-5 w-full h-12 btn-primary-Grexo" data-testid="website-generate-btn">
+              <Button onClick={generate} disabled={generating || !description.trim()} className="mt-5 w-full h-12 btn-primary-grexo" data-testid="website-generate-btn">
                 {generating ? "Generating…" : <><Sparkle size={16} weight="fill" className="mr-2" /> Generate Website</>}
               </Button>
               <div className="mt-3 text-xs text-slate-500">Costs 3 credits per generation.</div>
@@ -227,12 +227,12 @@ export default function WebsitePage() {
             <AnimatePresence mode="wait">
               {generating ? (
                 <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="glass rounded-2xl p-16 text-center">
-                  <Globe size={48} className="mx-auto text-Grexo-cyan animate-Grexo-pulse" />
+                  <Globe size={48} className="mx-auto text-grexo-cyan animate-grexo-pulse" />
                   <div className="mt-6 text-xl">Crafting your website…</div>
                   <div className="mt-2 text-slate-500 text-sm">Generating layout, design and content with Claude.</div>
                   <div className="mt-6 flex items-center justify-center gap-1.5">
                     {[0, 1, 2, 3, 4].map((i) => (
-                      <span key={i} className="w-1.5 h-6 bg-Grexo-cyan/40 rounded animate-pulse" style={{ animationDelay: `${i * 100}ms` }} />
+                      <span key={i} className="w-1.5 h-6 bg-grexo-cyan/40 rounded animate-pulse" style={{ animationDelay: `${i * 100}ms` }} />
                     ))}
                   </div>
                 </motion.div>
@@ -241,18 +241,18 @@ export default function WebsitePage() {
                   <div className="glass rounded-2xl p-2">
                     <Tabs defaultValue="preview" className="w-full">
                       <div className="flex items-center justify-between p-3">
-                        <TabsList className="bg-Grexo-elevated border border-white/5">
+                        <TabsList className="bg-grexo-elevated border border-white/5">
                           <TabsTrigger value="preview" data-testid="website-tab-preview"><MonitorPlay size={14} className="mr-2" /> Preview</TabsTrigger>
                           <TabsTrigger value="code" data-testid="website-tab-code"><CodeIcon size={14} className="mr-2" /> Code</TabsTrigger>
                         </TabsList>
                         <div className="flex items-center gap-2">
-                          <Button onClick={generate} variant="outline" size="sm" className="btn-ghost-Grexo" data-testid="website-regenerate-btn">
+                          <Button onClick={generate} variant="outline" size="sm" className="btn-ghost-grexo" data-testid="website-regenerate-btn">
                             <ArrowsClockwise size={14} className="mr-1.5" /> Regenerate
                           </Button>
-                          <Button onClick={copyCode} variant="outline" size="sm" className="btn-ghost-Grexo" data-testid="website-copy-btn">
+                          <Button onClick={copyCode} variant="outline" size="sm" className="btn-ghost-grexo" data-testid="website-copy-btn">
                             <ClipboardText size={14} className="mr-1.5" /> Copy
                           </Button>
-                          <Button onClick={downloadZip} size="sm" className="btn-primary-Grexo" data-testid="website-zip-btn">
+                          <Button onClick={downloadZip} size="sm" className="btn-primary-grexo" data-testid="website-zip-btn">
                             <DownloadSimple size={14} className="mr-1.5" /> ZIP
                           </Button>
                         </div>
@@ -284,7 +284,7 @@ export default function WebsitePage() {
                 </motion.div>
               ) : (
                 <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-2xl p-16 text-center">
-                  <Globe size={48} className="mx-auto text-Grexo-cyan opacity-60" />
+                  <Globe size={48} className="mx-auto text-grexo-cyan opacity-60" />
                   <div className="mt-6 text-xl font-light">No website yet</div>
                   <div className="mt-2 text-slate-500 text-sm">Describe what you want on the left and hit Generate.</div>
                 </motion.div>
