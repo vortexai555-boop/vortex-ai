@@ -42,7 +42,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <GrexoLogo />
           <nav className="hidden md:flex items-center gap-8 text-sm text-slate-300">
-            <button onClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); window.history.pushState(null, "", "/"); }} className="hover:text-white transition" data-testid="nav-home">Home</button>
+            <a href="/" className="hover:text-white transition" data-testid="nav-home">Home</a>
             <a href="#features" className="hover:text-white transition" data-testid="nav-features">Features</a>
             <a href="#pricing" className="hover:text-white transition" data-testid="nav-pricing">Pricing</a>
             <a href="#testimonials" className="hover:text-white transition" data-testid="nav-testimonials">Reviews</a>
