@@ -5,6 +5,13 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+
+@layer base {
   :root {
     --background: 240 20% 2%;
     --foreground: 0 0% 100%;
@@ -57,12 +64,12 @@
 }
 
 /* Grexo background grain + glow utilities */
-.Grexo-grain {
+.grexo-grain {
   background-image: radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
   background-size: 4px 4px;
 }
 
-.Grexo-grid-bg {
+.grexo-grid-bg {
   background-image:
     linear-gradient(rgba(0, 240, 255, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 240, 255, 0.04) 1px, transparent 1px);
@@ -101,26 +108,26 @@
   color: #00F0FF;
 }
 
-.btn-primary-Grexo {
+.btn-primary-grexo {
   background: #00F0FF;
   color: #000;
   font-weight: 600;
   transition: all 0.2s ease;
   box-shadow: 0 0 18px rgba(0, 240, 255, 0.28);
 }
-.btn-primary-Grexo:hover {
+.btn-primary-grexo:hover {
   background: #E0FFFF;
   box-shadow: 0 0 30px rgba(0, 240, 255, 0.55);
   transform: translateY(-1px);
 }
 
-.btn-ghost-Grexo {
+.btn-ghost-grexo {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #fff;
   transition: all 0.2s ease;
 }
-.btn-ghost-Grexo:hover {
+.btn-ghost-grexo:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
 }
