@@ -108,7 +108,7 @@ export default function ProductivityPage() {
       <div className="h-full overflow-y-auto p-4 md:p-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center gap-4 mb-2">
-            <div className="p-3 rounded-2xl bg-Grexo-cyan/20 text-Grexo-cyan">
+            <div className="p-3 rounded-2xl bg-grexo-cyan/20 text-grexo-cyan">
               <MagicWand size={32} weight="duotone" />
             </div>
             <div>
@@ -122,9 +122,9 @@ export default function ProductivityPage() {
               <button 
                 key={t.id} 
                 onClick={() => handleSelectTool(t)}
-                className="glass rounded-xl p-6 text-left hover:bg-white/5 transition-colors border border-white/5 hover:border-Grexo-cyan/30 group"
+                className="glass rounded-xl p-6 text-left hover:bg-white/5 transition-colors border border-white/5 hover:border-grexo-cyan/30 group"
               >
-                <div className="text-Grexo-cyan mb-4 group-hover:scale-110 transition-transform duration-300">
+                <div className="text-grexo-cyan mb-4 group-hover:scale-110 transition-transform duration-300">
                   <t.icon size={32} weight="duotone" />
                 </div>
                 <h3 className="text-lg font-medium text-white mb-2">{t.name}</h3>
@@ -144,7 +144,7 @@ export default function ProductivityPage() {
           <ArrowLeft className="mr-2" /> Back to Tools
         </Button>
         <div className="flex items-center gap-3 mb-8">
-          <div className="text-Grexo-cyan">
+          <div className="text-grexo-cyan">
             <activeTool.icon size={28} weight="duotone" />
           </div>
           <h2 className="text-2xl font-bold text-white">{activeTool.name}</h2>
@@ -158,15 +158,15 @@ export default function ProductivityPage() {
               </label>
               <div className="relative">
                 <textarea 
-                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 pb-12 text-white focus:outline-none focus:border-Grexo-cyan/50 focus:ring-1 focus:ring-Grexo-cyan/50 min-h-[100px] resize-none transition-all"
+                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 pb-12 text-white focus:outline-none focus:border-grexo-cyan/50 focus:ring-1 focus:ring-grexo-cyan/50 min-h-[100px] resize-none transition-all"
                   placeholder="Type here..."
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                 />
                 <div className="absolute left-2 bottom-2">
-                  <label className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
-                    <PlusCircle size={20} weight="regular" />
-                    <input type="file" className="hidden" onChange={handleFileChange} />
+                  <label htmlFor="file-upload-prod-1" className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
+                    <PlusCircle size={20} weight="regular" className="pointer-events-none" />
+                    <input id="file-upload-prod-1" type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
@@ -188,15 +188,15 @@ export default function ProductivityPage() {
               </label>
               <div className="relative">
                 <textarea 
-                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 pb-12 text-white focus:outline-none focus:border-Grexo-cyan/50 focus:ring-1 focus:ring-Grexo-cyan/50 min-h-[150px] resize-none transition-all"
+                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 pb-12 text-white focus:outline-none focus:border-grexo-cyan/50 focus:ring-1 focus:ring-grexo-cyan/50 min-h-[150px] resize-none transition-all"
                   placeholder="Paste the source text here..."
                   value={inputText}
                   onChange={e => setInputText(e.target.value)}
                 />
                 <div className="absolute left-2 bottom-2">
-                  <label className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
-                    <PlusCircle size={20} weight="regular" />
-                    <input type="file" className="hidden" onChange={handleFileChange} />
+                  <label htmlFor="file-upload-prod-2" className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
+                    <PlusCircle size={20} weight="regular" className="pointer-events-none" />
+                    <input id="file-upload-prod-2" type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
@@ -220,7 +220,7 @@ export default function ProductivityPage() {
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <UploadSimple className="mb-2 text-slate-400" size={24} />
                   <p className="mb-1 text-sm text-slate-400">
-                    <span className="font-semibold text-Grexo-cyan">Click to upload</span>
+                    <span className="font-semibold text-grexo-cyan">Click to upload</span>
                   </p>
                   <p className="text-xs text-slate-500">
                     {activeTool.fileAccept === "application/pdf" ? "PDF only" : "Images or PDF"}
@@ -235,7 +235,7 @@ export default function ProductivityPage() {
               </label>
               {file && (
                 <div className="mt-4 flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
-                  <FileImage className="text-Grexo-purple" size={24} weight="duotone" />
+                  <FileImage className="text-grexo-purple" size={24} weight="duotone" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{file.name}</p>
                     <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
@@ -247,7 +247,7 @@ export default function ProductivityPage() {
         </div>
 
         <Button 
-          className="w-full mt-8 bg-Grexo-cyan hover:bg-Grexo-cyan/80 text-black font-semibold rounded-xl py-6 glow-cyan"
+          className="w-full mt-8 bg-grexo-cyan hover:bg-grexo-cyan/80 text-black font-semibold rounded-xl py-6 glow-cyan"
           onClick={handleGenerate}
           disabled={loading || user?.credits < 1}
         >
