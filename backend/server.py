@@ -225,7 +225,7 @@ async def generate_text_free(messages: list) -> str:
             final_msgs.append({"role": m["role"], "content": m["content"]})
             
         resp = await ai_client.chat.completions.create(
-            model='google/gemini-2.0-flash-exp:free',
+            model='google/gemini-2.0-flash-lite-preview-02-05:free',
             messages=final_msgs
         )
         return resp.choices[0].message.content
@@ -525,7 +525,7 @@ async def chat_send(
         messages.append({"role": "user", "content": user_content})
 
         resp = await ai_client.chat.completions.create(
-            model='google/gemini-2.0-flash-exp:free',
+            model='google/gemini-2.0-flash-lite-preview-02-05:free',
             messages=messages
         )
         reply = resp.choices[0].message.content
@@ -614,7 +614,7 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
             ]
             
             resp = await ai_client.chat.completions.create(
-                model='google/gemini-2.0-flash-exp:free',
+                model='google/gemini-2.0-flash-lite-preview-02-05:free',
                 messages=messages
             )
             reply = resp.choices[0].message.content
@@ -845,7 +845,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             ]
             
             resp = await ai_client.chat.completions.create(
-                model='google/gemini-2.0-flash-exp:free',
+                model='google/gemini-2.0-flash-lite-preview-02-05:free',
                 messages=messages
             )
             out = resp.choices[0].message.content
