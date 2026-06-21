@@ -600,19 +600,26 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
                 b64_data = b64_data.split(",", 1)[1]
             
             contents = [
-                system_instruction,
-                types.Part(
-                    inline_data=types.Blob(
-                        data=base64.b64decode(b64_data),
-                        mime_type=mime_type
-                    )
-                ),
-                user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(text=user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")),
+                        types.Part(
+                            inline_data=types.Blob(
+                                data=base64.b64decode(b64_data),
+                                mime_type=mime_type
+                            )
+                        )
+                    ]
+                )
             ]
             
             resp = await ai_client.aio.models.generate_content(
                 model='gemini-2.5-flash',
-                contents=contents
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                )
             )
             reply = resp.text
         else:
@@ -826,13 +833,12 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
     try:
         if files_data:
             import base64
-            contents = [{"role": "system", "content": SYSTEM_PROMPTS["website"]}]
-            user_content = [prompt]
+            user_parts = [types.Part.from_text(text=prompt)]
             for file in files_data:
                 b64_data = file["data"]
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
-                user_content.append(
+                user_parts.append(
                     types.Part(
                         inline_data=types.Blob(
                             data=base64.b64decode(b64_data),
@@ -841,9 +847,11 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
                     )
                 )
             
+            contents = [types.Content(role="user", parts=user_parts)]
+            
             resp = await ai_client.aio.models.generate_content(
                 model='gemini-2.5-flash',
-                contents=user_content,
+                contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPTS["website"]
                 )
