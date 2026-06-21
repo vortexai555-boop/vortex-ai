@@ -26,16 +26,16 @@ const features = [
 ];
 
 const testimonials = [
-  { name: "Maya Chen", role: "Founder, Pixelweave", quote: "Grexo is the assistant I actually open every morning. Fast, clean, and honest answers.", avatar: AVATARS[1] },
-  { name: "Daniel Park", role: "CTO, Northgate", quote: "We replaced three AI tools with Grexo. The interface is in a class of its own.", avatar: AVATARS[0] },
+  { name: "Maya Chen", role: "Founder, Pixelweave", quote: "GREXO is the assistant I actually open every morning. Fast, clean, and honest answers.", avatar: AVATARS[1] },
+  { name: "Daniel Park", role: "CTO, Northgate", quote: "We replaced three AI tools with GREXO. The interface is in a class of its own.", avatar: AVATARS[0] },
   { name: "Aisha Khan", role: "Product Designer", quote: "The dark aesthetic alone is worth the upgrade. It feels like flying through ideas.", avatar: AVATARS[2] },
-  { name: "Rafael Souza", role: "Indie hacker", quote: "I built my entire weekend project with Grexo. The chat is genuinely thoughtful.", avatar: AVATARS[0] },
+  { name: "Rafael Souza", role: "Indie hacker", quote: "I built my entire weekend project with GREXO. The chat is genuinely thoughtful.", avatar: AVATARS[0] },
 ];
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-Grexo-bg text-white relative overflow-hidden">
-      <div className="Grexo-grain absolute inset-0 opacity-30 pointer-events-none" />
+    <div className="min-h-screen bg-grexo-bg text-white relative overflow-hidden">
+      <div className="grexo-grain absolute inset-0 opacity-30 pointer-events-none" />
 
       {/* NAV */}
       <header className="fixed top-0 left-0 right-0 z-50">
@@ -49,7 +49,7 @@ export default function Landing() {
           </nav>
           <div className="flex items-center gap-3">
             <Link to="/login"><Button variant="ghost" className="text-slate-200 hover:bg-white/5" data-testid="nav-login">Sign in</Button></Link>
-            <Link to="/signup"><Button className="btn-primary-Grexo" data-testid="nav-signup">Start Free</Button></Link>
+            <Link to="/signup"><Button className="btn-primary-grexo" data-testid="nav-signup">Start Free</Button></Link>
           </div>
         </div>
       </header>
@@ -58,7 +58,7 @@ export default function Landing() {
       <section className="relative min-h-screen flex items-center justify-center pt-24">
         <div className="absolute inset-0">
           <img src={HERO_BG} alt="" className="w-full h-full object-cover opacity-25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-Grexo-bg via-Grexo-bg/60 to-Grexo-bg" />
+          <div className="absolute inset-0 bg-gradient-to-b from-grexo-bg via-grexo-bg/60 to-grexo-bg" />
           <div className="aurora" />
         </div>
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
@@ -77,7 +77,7 @@ export default function Landing() {
               <Sparkle size={24} className="text-[#00F0FF] shrink-0" weight="duotone" />
               <input 
                 type="text" 
-                placeholder="Ask Grexo anything..." 
+                placeholder="Ask GREXO anything..." 
                 className="flex-1 bg-transparent border-none text-white text-base outline-none focus:ring-0 placeholder:text-slate-500 w-full"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -86,15 +86,29 @@ export default function Landing() {
                 }}
               />
               <Link to="/signup">
-                <Button size="lg" className="btn-primary-Grexo h-12 px-6 text-base rounded-xl">
+                <Button size="lg" className="btn-primary-grexo h-12 px-6 text-base rounded-xl">
                   Send Message
                 </Button>
               </Link>
             </div>
 
             {/* Quick Action Suggestions */}
-            <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
-              {["Write a product spec", "Debug some React code", "Generate a landscape image"].map((suggestion) => (
+            <div className="mt-6 flex items-center justify-center gap-3 flex-wrap max-w-4xl mx-auto">
+              {[
+                "AI Chat Assistant", 
+                "Website Builder", 
+                "Image Generator",
+                "Document Writer", 
+                "Resume Builder", 
+                "Cover Letter", 
+                "Email Writer", 
+                "Grammar Checker", 
+                "Text Summarizer", 
+                "Translator", 
+                "Meeting Notes", 
+                "PDF QA", 
+                "OCR Extract"
+              ].map((suggestion) => (
                 <Link key={suggestion} to="/signup" className="text-xs text-slate-400 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full px-4 py-2 transition-colors cursor-pointer">
                   {suggestion}
                 </Link>
@@ -172,7 +186,7 @@ export default function Landing() {
                   {p.features.map((x) => <li key={x} className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#00F0FF]"/>{x}</li>)}
                 </ul>
                 <Link to="/signup">
-                  <Button className={`mt-8 w-full ${p.highlight ? "btn-primary-Grexo" : "btn-ghost-Grexo"}`} data-testid={`pricing-cta-${p.name.toLowerCase()}`}>{p.cta}</Button>
+                  <Button className={`mt-8 w-full ${p.highlight ? "btn-primary-grexo" : "btn-ghost-grexo"}`} data-testid={`pricing-cta-${p.name.toLowerCase()}`}>{p.cta}</Button>
                 </Link>
               </div>
             ))}
@@ -259,10 +273,10 @@ export default function Landing() {
         </div>
         <div className="max-w-7xl mx-auto px-6 mt-16">
           <div className="text-[14vw] sm:text-[10vw] font-heading font-light tracking-tighter leading-none text-white/[0.04] select-none">
-            Grexo
+            GREXO
           </div>
           <div className="mt-6 text-xs text-slate-600 flex justify-between">
-            <span>© 2026 GREXO AI. All rights reserved.</span>
+            <span>© 2026 Grexo AI. All rights reserved.</span>
             <span>v1.0 · MVP</span>
           </div>
         </div>
