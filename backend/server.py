@@ -215,15 +215,22 @@ async def generate_text_free(messages: list) -> str:
         if system.strip():
             config_kwargs["system_instruction"] = system.strip()
             
-        resp = await ai_client.aio.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt.strip(),
-            config=types.GenerateContentConfig(**config_kwargs)
-        )
-        return resp.text
-    except Exception as e:
-        logger.exception("Free text generation failed: %s", e)
-        raise e
+        try:
+            resp = await ai_client.aio.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt.strip(),
+                config=types.GenerateContentConfig(**config_kwargs)
+            )
+            return resp.text
+        except Exception as e:
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "quota" in str(e).lower():
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    poll_msgs = [{"role": m["role"] if m["role"] != "system" else "system", "content": m["content"]} for m in messages]
+                    res = await client.post("https://text.pollinations.ai/", json={"messages": poll_msgs}, timeout=60.0)
+                    if res.status_code == 200:
+                        return res.text
+            raise e
 
 from duckduckgo_search import DDGS
 
@@ -550,12 +557,13 @@ async def chat_send(
                 from duckduckgo_search import DDGS
                 import asyncio
                 
-                full_p = system + current_date_info + "\n\nRecent History:\n"
+                import httpx
+                
+                poll_msgs = [{"role": "system", "content": system + current_date_info}]
                 for m in history[-5:]:
-                    full_p += f"{m.get('role', '')}: {m.get('content', '')}\n"
+                    poll_msgs.append({"role": "user" if m.get("role") == "user" else "assistant", "content": m.get("content", "")})
                 
-                full_p += f"\nUser: {body.message}\n"
-                
+                user_content = body.message
                 if body.web_search:
                     try:
                         ddgs_s = DDGS()
@@ -563,14 +571,18 @@ async def chat_send(
                         context_str = "Web Search Results:\n"
                         for r in sr:
                             context_str += f"- {r.get('title')}: {r.get('body')}\n"
-                        full_p += f"\n{context_str}\n"
+                        user_content += f"\n\n{context_str}"
                     except:
                         pass
                 
-                def do_chat():
-                    return DDGS().chat(full_p, model="gpt-4o-mini")
+                poll_msgs.append({"role": "user", "content": user_content})
                 
-                reply = await asyncio.to_thread(do_chat)
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post("https://text.pollinations.ai/", json={"messages": poll_msgs}, timeout=60.0)
+                    if resp.status_code == 200:
+                         reply = resp.text
+                    else:
+                         reply = "Error: Free AI fallback also failed."
             else:
                 raise api_err
 
