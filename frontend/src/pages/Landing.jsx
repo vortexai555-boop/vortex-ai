@@ -42,6 +42,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <GrexoLogo />
           <nav className="hidden md:flex items-center gap-8 text-sm text-slate-300">
+            <Link to="/" className="hover:text-white transition" data-testid="nav-home">Home</Link>
             <a href="#features" className="hover:text-white transition" data-testid="nav-features">Features</a>
             <a href="#pricing" className="hover:text-white transition" data-testid="nav-pricing">Pricing</a>
             <a href="#testimonials" className="hover:text-white transition" data-testid="nav-testimonials">Reviews</a>
