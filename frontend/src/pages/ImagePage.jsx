@@ -176,7 +176,7 @@ export default function ImagePage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="A neon cyberpunk city at midnight, raining…"
-                className="mt-3 min-h-[140px] bg-grexo-elevated border-white/10 focus-visible:ring-grexo-cyan resize-none"
+                className="mt-3 min-h-[140px] bg-[#0A0A12] text-white placeholder-slate-500 border-white/10 focus-visible:ring-[#00F0FF] resize-none"
                 data-testid="image-prompt-input"
               />
 
