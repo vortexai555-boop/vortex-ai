@@ -1,4 +1,4 @@
-"""GREXO AI - Premium AI SaaS Platform Backend."""
+"""grexo ai - Premium AI SaaS Platform Backend."""
 
 import os
 import uuid
@@ -16,16 +16,16 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, EmailStr
-from google import genai
-from google.genai import types
 import base64
+from openai import AsyncOpenAI
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 import os
-ai_client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY", "")
+ai_client = AsyncOpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY", "")
 )
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ db = client[os.environ["DB_NAME"]]
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret")
 JWT_ALG = os.environ.get("JWT_ALG", "HS256")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@Grexo.ai")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@grexo.ai")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "GrexoAdmin@2026")
 
 FREE_CREDITS = 100
@@ -48,7 +48,7 @@ ENTERPRISE_CREDITS = 99999
 CHAT_MODEL = ("anthropic", "claude-sonnet-4-5-20250929")
 IMAGE_MODEL = "imagen-4.0-fast-generate-001"
 
-app = FastAPI(title="GREXO AI")
+app = FastAPI(title="grexo ai")
 api = APIRouter(prefix="/api")
 
 
@@ -220,24 +220,15 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
 
 async def generate_text_free(messages: list) -> str:
     try:
-        system = ""
-        prompt = ""
+        final_msgs = []
         for m in messages:
-            if m["role"] == "system":
-                system += m["content"] + "\n"
-            else:
-                prompt += m["content"] + "\n"
-                
-        config_kwargs = {}
-        if system.strip():
-            config_kwargs["system_instruction"] = system.strip()
+            final_msgs.append({"role": m["role"], "content": m["content"]})
             
-        resp = await ai_client.aio.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt.strip(),
-            config=types.GenerateContentConfig(**config_kwargs)
+        resp = await ai_client.chat.completions.create(
+            model='google/gemini-2.0-flash-lite-preview-02-05:free',
+            messages=final_msgs
         )
-        return resp.text
+        return resp.choices[0].message.content
     except Exception as e:
         logger.exception("Free text generation failed: %s", e)
         raise e
@@ -400,11 +391,11 @@ async def logout(response: Response, authorization: Optional[str] = Header(None)
 
 
 SYSTEM_PROMPTS = {
-    "chat": "You are GREXO AI Assistant — a brilliant, friendly, helpful AI. Be concise, clear, and impressive.",
-    "code": "You are Grexo Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
-    "content": "You are Grexo Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
-    "business": "You are Grexo Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
-    "website": "You are Grexo Web — an expert frontend engineer. When asked, output a SINGLE complete HTML file with inline CSS+JS in a ```html code block.",
+    "chat": "You are grexo ai Assistant — a brilliant, friendly, helpful AI. Be concise, clear, and impressive.",
+    "code": "You are grexo Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
+    "content": "You are grexo Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
+    "business": "You are grexo Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
+    "website": "You are grexo Web — an expert frontend engineer. When asked, output a SINGLE complete HTML file with inline CSS+JS in a ```html code block.",
     "calculator": "Calculator"
 }
 
@@ -508,37 +499,36 @@ async def chat_send(
     current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Therefore, events from 2024, 2025, and 2026 are NOT in the future. You MUST use search tools to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
     
     try:
-        contents = []
+        messages = [{"role": "system", "content": system + current_date_info}]
+        
         for m in history[:-1]:
-            contents.append(
-                types.Content(
-                    role="user" if m["role"] == "user" else "model",
-                    parts=[types.Part.from_text(text=m["content"])]
-                )
-            )
+            messages.append({
+                "role": "user" if m["role"] == "user" else "assistant",
+                "content": m["content"]
+            })
             
-        user_parts = [types.Part.from_text(text=body.message)]
+        user_content = []
+        if body.message:
+            user_content.append({"type": "text", "text": body.message})
+            
         if body.files:
-            import base64
             for file in body.files:
                 b64_data = file["data"]
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
-                user_parts.append(types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=file.get("mime", "application/pdf")))
-        contents.append(types.Content(role="user", parts=user_parts))
+                mime = file.get("mime", "image/png")
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64_data}"}
+                })
+                
+        messages.append({"role": "user", "content": user_content})
 
-        config_kwargs = {
-            "system_instruction": system + current_date_info
-        }
-        if body.web_search:
-            config_kwargs["tools"] = [{"google_search": {}}]
-
-        resp = await ai_client.aio.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=contents,
-            config=types.GenerateContentConfig(**config_kwargs)
+        resp = await ai_client.chat.completions.create(
+            model='google/gemini-2.0-flash-lite-preview-02-05:free',
+            messages=messages
         )
-        reply = resp.text
+        reply = resp.choices[0].message.content
 
         if not reply:
             reply = "No response from model."
@@ -602,24 +592,32 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
 
     try:
         if body.file_data:
-            import base64
-            # Use Gemini API for multimodal reading
-            mime_type = body.file_mime or "application/pdf"
+            # Use OpenAI compatible format
+            mime_type = body.file_mime or "image/png"
             b64_data = body.file_data
             if "," in b64_data:
                 b64_data = b64_data.split(",", 1)[1]
             
-            contents = [
-                system_instruction,
-                types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=mime_type),
-                user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
+            user_content = []
+            text_prompt = user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
+            if text_prompt:
+                user_content.append({"type": "text", "text": text_prompt})
+            
+            user_content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime_type};base64,{b64_data}"}
+            })
+            
+            messages = [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_content}
             ]
             
-            resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=contents
+            resp = await ai_client.chat.completions.create(
+                model='google/gemini-2.0-flash-lite-preview-02-05:free',
+                messages=messages
             )
-            reply = resp.text
+            reply = resp.choices[0].message.content
         else:
             messages = [{"role": "system", "content": system_instruction}]
             prompt_with_files = user_prompt or "Please provide input."
@@ -830,23 +828,27 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
     )
     try:
         if files_data:
-            import base64
-            contents = [{"role": "system", "content": SYSTEM_PROMPTS["website"]}]
-            user_content = [prompt]
+            user_content = [{"type": "text", "text": prompt}]
             for file in files_data:
                 b64_data = file["data"]
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
-                user_content.append(types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=file.get("mime", "application/pdf")))
+                mime = file.get("mime", "image/png")
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64_data}"}
+                })
             
-            resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=user_content,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPTS["website"]
-                )
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPTS["website"]},
+                {"role": "user", "content": user_content}
+            ]
+            
+            resp = await ai_client.chat.completions.create(
+                model='google/gemini-2.0-flash-lite-preview-02-05:free',
+                messages=messages
             )
-            out = resp.text
+            out = resp.choices[0].message.content
         else:
             out = await llm_complete(SYSTEM_PROMPTS["website"], prompt)
         
@@ -1303,7 +1305,7 @@ async def admin_audit(_admin=Depends(require_admin)):
 
 
 @api.get("/")
-async def root(): return {"app": "GREXO AI", "ok": True}
+async def root(): return {"app": "grexo ai", "ok": True}
 
 
 @app.on_event("startup")
