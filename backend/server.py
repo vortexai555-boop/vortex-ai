@@ -220,24 +220,17 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
 
 async def generate_text_free(messages: list) -> str:
     try:
-        system = ""
-        prompt = ""
-        for m in messages:
-            if m["role"] == "system":
-                system += m["content"] + "\n"
-            else:
-                prompt += m["content"] + "\n"
-                
-        config_kwargs = {}
-        if system.strip():
-            config_kwargs["system_instruction"] = system.strip()
-            
-        resp = await ai_client.aio.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt.strip(),
-            config=types.GenerateContentConfig(**config_kwargs)
-        )
-        return resp.text
+        import httpx
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post("https://text.pollinations.ai/openai", json={
+                "messages": messages,
+                "model": "openai"
+            })
+            if resp.status_code == 200:
+                data = resp.json()
+                if "choices" in data:
+                    return data["choices"][0]["message"]["content"]
+            return resp.text
     except Exception as e:
         logger.exception("Free text generation failed: %s", e)
         raise e
@@ -508,45 +501,45 @@ async def chat_send(
     current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Therefore, events from 2024, 2025, and 2026 are NOT in the future. You MUST use search tools to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
     
     try:
-        contents = []
+        messages_openai = [
+            {"role": "system", "content": system + current_date_info}
+        ]
         for m in history[:-1]:
-            contents.append(
-                types.Content(
-                    role="user" if m["role"] == "user" else "model",
-                    parts=[types.Part.from_text(text=m["content"])]
-                )
-            )
+            messages_openai.append({
+                "role": "user" if m["role"] == "user" else "assistant",
+                "content": m["content"]
+            })
             
-        user_parts = [types.Part.from_text(text=body.message)]
+        user_content_parts = []
+        
+        main_message = body.message
         if body.web_search:
             try:
                 results = await web_search(body.message)
                 if results:
                     search_context = "Recent relevant web search results:\n" + "\n".join([f"- {r.get('title')}: {r.get('body')}" for r in results])
-                    merged_prompt = f"{body.message}\n\n{search_context}\n\nPlease use the above search results to inform your answer if they are relevant."
-                    user_parts = [types.Part.from_text(text=merged_prompt)]
+                    main_message = f"{body.message}\n\n{search_context}\n\nPlease use the above search results to inform your answer if they are relevant."
             except Exception as e:
                 logger.error("Web search failed: %s", e)
+                
+        user_content_parts.append({"type": "text", "text": main_message})
 
         if body.files:
-            import base64
             for file in body.files:
                 b64_data = file["data"]
                 if "," in b64_data:
-                    b64_data = b64_data.split(",", 1)[1]
-                user_parts.append(types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=file.get("mime", "application/pdf")))
-        contents.append(types.Content(role="user", parts=user_parts))
+                    full_data_uri = b64_data
+                else:
+                    mime = file.get("mime", "application/octet-stream")
+                    full_data_uri = f"data:{mime};base64,{b64_data}"
+                user_content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": full_data_uri}
+                })
+        
+        messages_openai.append({"role": "user", "content": user_content_parts})
 
-        config_kwargs = {
-            "system_instruction": system + current_date_info
-        }
-
-        resp = await ai_client.aio.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=contents,
-            config=types.GenerateContentConfig(**config_kwargs)
-        )
-        reply = resp.text
+        reply = await generate_text_free(messages_openai)
 
         if not reply:
             reply = "No response from model."
@@ -609,31 +602,31 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
         user_prompt += f"Input:\n{body.input_text}\n"
 
     try:
+        user_content_parts = []
+        user_content_parts.append({
+            "type": "text", 
+            "text": user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
+        })
+
         if body.file_data:
-            import base64
-            # Use Gemini API for multimodal reading
             mime_type = body.file_mime or "application/pdf"
             b64_data = body.file_data
             if "," in b64_data:
-                b64_data = b64_data.split(",", 1)[1]
+                full_data_uri = b64_data
+            else:
+                full_data_uri = f"data:{mime_type};base64,{b64_data}"
             
-            config_kwargs = {"system_instruction": system_instruction}
-            contents = [
-                types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=mime_type),
-                user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
-            ]
-            
-            resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=contents,
-                config=types.GenerateContentConfig(**config_kwargs)
-            )
-            reply = resp.text
-        else:
-            messages = [{"role": "system", "content": system_instruction}]
-            prompt_with_files = user_prompt or "Please provide input."
-            messages.append({"role": "user", "content": prompt_with_files})
-            reply = await generate_text_free(messages)
+            user_content_parts.append({
+                "type": "image_url",
+                "image_url": {"url": full_data_uri}
+            })
+
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_content_parts}
+        ]
+        
+        reply = await generate_text_free(messages)
         
         if not reply:
             reply = ""
@@ -839,23 +832,29 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
     )
     try:
         if files_data:
-            import base64
-            contents = [{"role": "system", "content": SYSTEM_PROMPTS["website"]}]
-            user_content = [prompt]
+            user_content_parts = []
+            user_content_parts.append({"type": "text", "text": prompt})
+            
             for file in files_data:
                 b64_data = file["data"]
                 if "," in b64_data:
-                    b64_data = b64_data.split(",", 1)[1]
-                user_content.append(types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=file.get("mime", "application/pdf")))
+                    full_data_uri = b64_data
+                else:
+                    mime = file.get("mime", "application/octet-stream")
+                    full_data_uri = f"data:{mime};base64,{b64_data}"
+                user_content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": full_data_uri}
+                })
             
-            resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=user_content,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPTS["website"]
-                )
-            )
-            out = resp.text
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPTS["website"]},
+                {"role": "user", "content": user_content_parts}
+            ]
+            
+            out = await generate_text_free(messages)
+            if not out:
+                out = ""
         else:
             out = await llm_complete(SYSTEM_PROMPTS["website"], prompt)
         
