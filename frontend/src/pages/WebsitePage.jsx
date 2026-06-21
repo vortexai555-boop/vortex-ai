@@ -176,7 +176,7 @@ export default function WebsitePage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g. A modern landing page for a coffee subscription brand called Brewly..."
-                  className="mt-3 min-h-[140px] pb-12 bg-grexo-elevated border-white/10 focus-visible:ring-grexo-cyan resize-none"
+                  className="mt-3 min-h-[140px] pb-12 bg-[#0A0A12] text-white placeholder-slate-500 border-white/10 focus-visible:ring-[#00F0FF] resize-none"
                   data-testid="website-prompt-input"
                 />
                 <div className="absolute left-2 bottom-2">
