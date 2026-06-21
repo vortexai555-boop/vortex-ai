@@ -182,7 +182,7 @@ export default function WebsitePage() {
                 <div className="absolute left-2 bottom-2">
                   <label htmlFor="file-upload-website" className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
                     <PlusCircle size={20} weight="regular" className="pointer-events-none" />
-                    <input id="file-upload-website" type="file" multiple accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} />
+                    <input id="file-upload-website" type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
