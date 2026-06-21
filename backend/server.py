@@ -228,8 +228,9 @@ async def generate_text_free(messages: list) -> str:
             })
             if resp.status_code == 200:
                 data = resp.json()
-                if "choices" in data:
-                    return data["choices"][0]["message"]["content"]
+                if "choices" in data and len(data["choices"]) > 0:
+                    msg = data["choices"][0].get("message", {})
+                    return msg.get("content", str(data))
             return resp.text
     except Exception as e:
         logger.exception("Free text generation failed: %s", e)
@@ -495,7 +496,7 @@ async def chat_send(
     history = conv.get("messages", [])[-20:]
 
     transcript = "\n".join(
-        [f"{m['role'].upper()}: {m['content']}" for m in history[:-1]]
+        [f"{m['role'].upper()}: {m.get('content', '')}" for m in history[:-1]]
     )
 
     current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Therefore, events from 2024, 2025, and 2026 are NOT in the future. You MUST use search tools to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
@@ -507,7 +508,7 @@ async def chat_send(
         for m in history[:-1]:
             messages_openai.append({
                 "role": "user" if m["role"] == "user" else "assistant",
-                "content": m["content"]
+                "content": m.get("content", "")
             })
             
         user_content_parts = []
