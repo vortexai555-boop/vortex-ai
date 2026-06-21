@@ -1,6 +1,6 @@
 import React from "react";
 
-const LOGO_URL = "https://customer-assets.emergentagent.com/job_e8fbdd8e-9dde-4bc1-bb31-5473be113ed6/artifacts/c7b8qocd_WhatsApp%20Image%202026-06-05%20at%208.34.35%20PM.jpeg";
+const LOGO_URL = "https://drive.google.com/file/d/1ttIJIAxnbWsY6thF6mWJiOEAVjMH5OBG/view?usp=sharing";
 
 export default function GrexoLogo({ size = 36, withText = true, className = "" }) {
   return (
