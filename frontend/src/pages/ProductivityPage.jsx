@@ -166,7 +166,7 @@ export default function ProductivityPage() {
                 <div className="absolute left-2 bottom-2">
                   <label htmlFor="file-upload-prod-1" className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
                     <PlusCircle size={20} weight="regular" className="pointer-events-none" />
-                    <input id="file-upload-prod-1" type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileChange} />
+                    <input id="file-upload-prod-1" type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
@@ -196,7 +196,7 @@ export default function ProductivityPage() {
                 <div className="absolute left-2 bottom-2">
                   <label htmlFor="file-upload-prod-2" className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
                     <PlusCircle size={20} weight="regular" className="pointer-events-none" />
-                    <input id="file-upload-prod-2" type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileChange} />
+                    <input id="file-upload-prod-2" type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
@@ -228,7 +228,7 @@ export default function ProductivityPage() {
                 </div>
                 <input 
                   type="file" 
-                  className="hidden" 
+                  className="sr-only" 
                   accept={activeTool.fileAccept}
                   onChange={handleFileChange}
                 />
