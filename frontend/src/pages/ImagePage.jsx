@@ -207,7 +207,7 @@ export default function ImagePage() {
                 <label htmlFor="file-upload-image" className="cursor-pointer flex items-center gap-2 text-sm text-slate-400 hover:text-grexo-cyan transition-colors">
                   <Paperclip size={18} className="pointer-events-none" />
                   <span>Attach Image or PDF</span>
-                  <input id="file-upload-image" type="file" multiple className="sr-only" accept="image/*,application/pdf" onChange={handleFileChange} />
+                  <input id="file-upload-image" type="file" multiple className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} />
                 </label>
               </div>
 
