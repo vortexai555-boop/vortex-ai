@@ -515,13 +515,27 @@ async def chat_send(
                         )
                     )
                 )
+        # Inject search results manually to avoid Gemini quota limits
+        if body.web_search:
+            try:
+                from duckduckgo_search import DDGS
+                ddgs = DDGS()
+                results = ddgs.text(body.message, max_results=4)
+                context_str = "Web Search Results:\n"
+                for r in results:
+                    context_str += f"- {r.get('title')}: {r.get('body')} ({r.get('href')})\n"
+                
+                search_prompt = f"\n\nYou must answer the user's latest query by referencing these web search results to provide accurate, up-to-date information:\n\n{context_str}"
+                user_parts.append(types.Part.from_text(text=search_prompt))
+            except Exception as e:
+                logger.error("DuckDuckGo search failed: %s", e)
+                # Fail gracefully if search fails
+
         contents.append(types.Content(role="user", parts=user_parts))
 
         config_kwargs = {
             "system_instruction": system + current_date_info
         }
-        if body.web_search:
-            config_kwargs["tools"] = [{"google_search": {}}]
 
         resp = await ai_client.aio.models.generate_content(
             model='gemini-2.5-flash',
