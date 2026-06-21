@@ -36,7 +36,7 @@ export default function Landing() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-grexo-bg text-white relative overflow-hidden" id="top">
+    <div className="min-h-screen bg-grexo-bg text-white relative overflow-x-hidden" id="top">
       <div className="grexo-grain absolute inset-0 opacity-30 pointer-events-none" />
 
       {/* NAV */}
