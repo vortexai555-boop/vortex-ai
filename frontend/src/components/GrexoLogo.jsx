@@ -1,22 +1,17 @@
 import React from "react";
 
-const LOGO_URL = "https://drive.google.com/file/d/1ttIJIAxnbWsY6thF6mWJiOEAVjMH5OBG/view?usp=sharing";
-
 export default function GrexoLogo({ size = 36, withText = true, className = "" }) {
+  // If the image itself contains the text, we can just render the image.
+  // To avoid duplicating text, we won't render the separate text divs.
+  // We use object-contain so the text in the logo remains visible.
   return (
-    <div className={`flex items-center gap-3 ${className}`} data-testid="Grexo-logo">
+    <div className={`flex items-center justify-center ${className}`} data-testid="grexo-logo">
       <div
-        className="relative rounded-full overflow-hidden glow-cyan"
-        style={{ width: size, height: size, background: "#000" }}
+        className="relative flex items-center justify-center"
+        style={{ height: size, minWidth: size }}
       >
-        <img src={LOGO_URL} alt="GREXO AI" className="w-full h-full object-cover" />
+        <img src="https://drive.google.com/uc?export=view&id=1ttIJIAxnbWsY6thF6mWJiOEAVjMH5OBG" alt="Grexo AI" className="h-full object-contain drop-shadow-[0_0_8px_rgba(0,255,255,0.3)]" />
       </div>
-      {withText && (
-        <div className="leading-none">
-          <div className="font-heading font-semibold tracking-[0.18em] text-white text-sm">Grexo</div>
-          <div className="text-mono-accent">AI</div>
-        </div>
-      )}
     </div>
   );
 }
