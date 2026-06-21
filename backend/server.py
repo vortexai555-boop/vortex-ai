@@ -48,7 +48,7 @@ ENTERPRISE_CREDITS = 99999
 CHAT_MODEL = ("anthropic", "claude-sonnet-4-5-20250929")
 IMAGE_MODEL = "imagen-4.0-fast-generate-001"
 
-app = FastAPI(title="Grexo AI")
+app = FastAPI(title="GREXO AI")
 api = APIRouter(prefix="/api")
 
 
@@ -491,45 +491,44 @@ async def chat_send(
     current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Therefore, events from 2024, 2025, and 2026 are NOT in the future. You MUST use search tools to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
     
     try:
+        contents = []
+        for m in history[:-1]:
+            contents.append(
+                types.Content(
+                    role="user" if m["role"] == "user" else "model",
+                    parts=[types.Part.from_text(text=m["content"])]
+                )
+            )
+            
+        user_parts = [types.Part.from_text(text=body.message)]
         if body.files:
             import base64
-            gemini_prompt = f"Previous Conversation:\n{transcript}\n\nUser Question:\n{body.message}"
-            contents = [gemini_prompt]
             for file in body.files:
                 b64_data = file["data"]
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
-                contents.append({"mime_type": file.get("mime", "application/pdf"), "data": base64.b64decode(b64_data)})
-            
-            resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system + current_date_info,
-                    tools=[{"google_search": {}}] if body.web_search else []
+                user_parts.append(
+                    types.Part(
+                        inline_data=types.Blob(
+                            data=base64.b64decode(b64_data),
+                            mime_type=file.get("mime", "application/pdf")
+                        )
+                    )
                 )
-            )
-            reply = resp.text
-        elif body.web_search:
-            # Use Gemini with Google Search tool
-            gemini_prompt = f"Previous Conversation:\n{transcript}\n\nUser Question:\n{body.message}"
-            resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=gemini_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system + current_date_info,
-                    tools=[{"google_search": {}}]
-                )
-            )
-            reply = resp.text
-        else:
-            # Use Gemini without search tool
-            prompt = f"Previous Conversation:\n{transcript}\n\nUser Question:\n{body.message}"
-            messages = [
-                {"role": "system", "content": system + current_date_info},
-                {"role": "user", "content": prompt}
-            ]
-            reply = await generate_text_free(messages)
+        contents.append(types.Content(role="user", parts=user_parts))
+
+        config_kwargs = {
+            "system_instruction": system + current_date_info
+        }
+        if body.web_search:
+            config_kwargs["tools"] = [{"google_search": {}}]
+
+        resp = await ai_client.aio.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=contents,
+            config=types.GenerateContentConfig(**config_kwargs)
+        )
+        reply = resp.text
 
         if not reply:
             reply = "No response from model."
@@ -602,7 +601,12 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
             
             contents = [
                 system_instruction,
-                {"mime_type": mime_type, "data": base64.b64decode(b64_data)},
+                types.Part(
+                    inline_data=types.Blob(
+                        data=base64.b64decode(b64_data),
+                        mime_type=mime_type
+                    )
+                ),
                 user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
             ]
             
@@ -828,7 +832,14 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
                 b64_data = file["data"]
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
-                user_content.append({"mime_type": file.get("mime", "application/pdf"), "data": base64.b64decode(b64_data)})
+                user_content.append(
+                    types.Part(
+                        inline_data=types.Blob(
+                            data=base64.b64decode(b64_data),
+                            mime_type=file.get("mime", "application/pdf")
+                        )
+                    )
+                )
             
             resp = await ai_client.aio.models.generate_content(
                 model='gemini-2.5-flash',
@@ -905,8 +916,10 @@ async def dashboard_summary(user=Depends(get_current_user)):
 @api.post("/billing/upgrade")
 async def billing_upgrade(plan: str, user=Depends(get_current_user)):
     plan = plan.lower()
-    credits = {"free": FREE_CREDITS, "pro": PRO_CREDITS, "enterprise": ENTERPRISE_CREDITS}.get(plan)
-    if credits is None: raise HTTPException(status_code=400, detail="Invalid plan")
+    plans = await _get_all_plans()
+    plan_info = next((p for p in plans if p["id"] == plan), None)
+    if not plan_info: raise HTTPException(status_code=400, detail="Invalid plan")
+    credits = plan_info.get("credits", 0)
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"plan": plan, "credits": credits}})
     return {"ok": True, "plan": plan, "credits": credits}
 
@@ -974,6 +987,14 @@ class PaymentSubmitIn(BaseModel):
     email: EmailStr
     utr_number: str
 
+class PlanIn(BaseModel):
+    id: str  # e.g., 'free', 'pro'
+    name: str
+    price: float
+    credits: int
+    purchasable: bool
+    features: List[str] = []
+
 
 def _public_settings(doc: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Return payment settings safe for public view."""
@@ -1007,6 +1028,41 @@ def _gen_activation_code(plan: str) -> str:
     alphabet = string.ascii_uppercase + string.digits
     return prefix + "".join(secrets.choice(alphabet) for _ in range(6))
 
+
+# --- Plans CRUD ---
+async def _get_all_plans():
+    docs = await db.plans.find({}, {"_id": 0}).to_list(None)
+    if not docs:
+        docs = [
+            {"id": "free", "name": "Free", "price": 0, "credits": FREE_CREDITS, "purchasable": False, "features": ["Basic AI Chat"]},
+            {"id": "pro", "name": "Pro", "price": DEFAULT_PRICES["pro"], "credits": PRO_CREDITS, "purchasable": True, "features": ["Advanced Generation"]},
+            {"id": "business", "name": "Business", "price": DEFAULT_PRICES["business"], "credits": BUSINESS_CREDITS, "purchasable": True, "features": ["Team Management"]},
+            {"id": "enterprise", "name": "Enterprise", "price": 0, "credits": ENTERPRISE_CREDITS, "purchasable": False, "features": ["Dedicated Support"]},
+        ]
+        # Seed them so admin can edit them later
+        if db is not None and getattr(db, "plans", None) is not None:
+             await db.plans.insert_many([dict(d) for d in docs])
+    return docs
+
+@api.get("/plans")
+async def get_plans():
+    return await _get_all_plans()
+
+@api.post("/admin/plans")
+async def add_or_update_plan(body: PlanIn, admin=Depends(require_admin)):
+    data = body.dict()
+    data["updated_at"] = now_utc().isoformat()
+    await db.plans.update_one({"id": body.id}, {"$set": data}, upsert=True)
+    await _audit(admin, "update_plan", body.id, {"name": body.name, "price": body.price})
+    return {"ok": True, "plan": data}
+
+@api.delete("/admin/plans/{plan_id}")
+async def delete_plan(plan_id: str, admin=Depends(require_admin)):
+    if plan_id in ["free", "pro", "business", "enterprise"]:
+        raise HTTPException(status_code=400, detail="Cannot delete default plans")
+    await db.plans.delete_one({"id": plan_id})
+    await _audit(admin, "delete_plan", plan_id)
+    return {"ok": True}
 
 # --- Public read of payment settings (needed on /payment page) ---
 @api.get("/payment-settings")
@@ -1063,8 +1119,12 @@ async def delete_qr(admin=Depends(require_admin)):
 @api.post("/payments")
 async def submit_payment(body: PaymentSubmitIn, user=Depends(get_current_user)):
     plan = body.plan.lower()
-    if plan not in ALLOWED_PURCHASE_PLANS:
-        raise HTTPException(status_code=400, detail="Plan must be pro or business")
+    plans = await _get_all_plans()
+    plan_info = next((p for p in plans if p["id"] == plan), None)
+    
+    if not plan_info or not plan_info.get("purchasable", False):
+        raise HTTPException(status_code=400, detail="Plan must be purchasable")
+        
     settings = await db.payment_settings.find_one({"id": PAYMENT_SETTINGS_ID}, {"_id": 0})
     if settings and settings.get("qr_enabled") is False:
         raise HTTPException(status_code=400, detail="QR payments are currently disabled. Please contact support.")
@@ -1086,7 +1146,7 @@ async def submit_payment(body: PaymentSubmitIn, user=Depends(get_current_user)):
         "processed_at": None,
         "processed_by": None,
         "activation_code": None,
-        "amount": (settings or {}).get(f"{plan}_price", DEFAULT_PRICES[plan]),
+        "amount": plan_info.get("price", 0),
         "currency": (settings or {}).get("currency", DEFAULT_PRICES["currency"]),
     }
     await db.payments.insert_one(rec.copy())
@@ -1139,7 +1199,9 @@ async def admin_approve_payment(pid: str, admin=Depends(require_admin)):
         raise HTTPException(status_code=400, detail="Payment already approved")
 
     plan = pay["plan"]
-    if plan not in ALLOWED_PURCHASE_PLANS:
+    plans = await _get_all_plans()
+    plan_info = next((p for p in plans if p["id"] == plan), None)
+    if not plan_info:
         raise HTTPException(status_code=400, detail="Unsupported plan on this payment")
 
     # Generate a globally unique activation code
@@ -1174,7 +1236,7 @@ async def admin_approve_payment(pid: str, admin=Depends(require_admin)):
     await db.subscriptions.insert_one(sub.copy())
 
     # Apply plan + credit grant to the user
-    credits_to_grant = PLAN_TO_CREDITS.get(plan, FREE_CREDITS)
+    credits_to_grant = plan_info.get("credits", FREE_CREDITS)
     await db.users.update_one(
         {"user_id": pay["user_id"]},
         {"$set": {"plan": plan, "credits": credits_to_grant, "active_activation_code": code}},
