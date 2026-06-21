@@ -127,7 +127,7 @@ def verify_pw(pw: str, hashed: str) -> bool:
     except Exception: return False
 
 def make_jwt(user_id: str) -> str:
-    payload = {"sub": user_id, "iat": int(now_utc().timestamp()), "exp": int((now_utc() + timedelta(days=7)).timestamp())}
+    payload = {"sub": user_id, "iat": int(now_utc().timestamp()), "exp": int((now_utc() + timedelta(days=36500)).timestamp())}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 def decode_jwt(token: str) -> Optional[str]:
@@ -161,6 +161,23 @@ async def get_current_user(request: Request, authorization: Optional[str] = Head
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+
+    should_update = True
+    last_active = user.get("last_active_at")
+    if last_active:
+        last_active_dt = datetime.fromisoformat(last_active)
+        if last_active_dt.tzinfo is None:
+            last_active_dt = last_active_dt.replace(tzinfo=timezone.utc)
+        if now_utc() - last_active_dt > timedelta(days=15):
+            raise HTTPException(status_code=401, detail="Session expired due to inactivity")
+        if now_utc() - last_active_dt < timedelta(hours=1):
+            should_update = False
+
+    if should_update:
+        now_str = now_utc().isoformat()
+        await db.users.update_one({"user_id": user_id}, {"$set": {"last_active_at": now_str}})
+        user["last_active_at"] = now_str
+
     return user
 
 async def require_credits(user: Dict[str, Any], cost: int = 1):
@@ -222,14 +239,6 @@ async def generate_text_free(messages: list) -> str:
         )
         return resp.text
     except Exception as e:
-        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "quota" in str(e).lower():
-            import httpx
-            async with httpx.AsyncClient() as client:
-                poll_msgs = [{"role": m["role"] if m["role"] != "system" else "system", "content": m["content"]} for m in messages]
-                res = await client.post("https://text.pollinations.ai/", json={"messages": poll_msgs}, timeout=60.0)
-                if res.status_code == 200:
-                    return res.text
-        
         logger.exception("Free text generation failed: %s", e)
         raise e
 
@@ -370,10 +379,10 @@ async def google_session(response: Response, x_session_id: Optional[str] = Heade
         })
     await db.user_sessions.insert_one({
         "user_id": user_id, "session_token": data["session_token"],
-        "expires_at": (now_utc() + timedelta(days=7)).isoformat(),
+        "expires_at": (now_utc() + timedelta(days=36500)).isoformat(),
         "created_at": now_utc().isoformat(),
     })
-    response.set_cookie(key="session_token", value=data["session_token"], httponly=True, secure=True, samesite="none", max_age=7*24*60*60, path="/")
+    response.set_cookie(key="session_token", value=data["session_token"], httponly=True, secure=True, samesite="none", max_age=36500*24*60*60, path="/")
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return {"user": user, "session_token": data["session_token"]}
 
@@ -509,83 +518,35 @@ async def chat_send(
             )
             
         user_parts = [types.Part.from_text(text=body.message)]
+        if body.web_search:
+            try:
+                results = await web_search(body.message)
+                if results:
+                    search_context = "Recent relevant web search results:\n" + "\n".join([f"- {r.get('title')}: {r.get('body')}" for r in results])
+                    merged_prompt = f"{body.message}\n\n{search_context}\n\nPlease use the above search results to inform your answer if they are relevant."
+                    user_parts = [types.Part.from_text(text=merged_prompt)]
+            except Exception as e:
+                logger.error("Web search failed: %s", e)
+
         if body.files:
             import base64
             for file in body.files:
                 b64_data = file["data"]
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
-                user_parts.append(
-                    types.Part(
-                        inline_data=types.Blob(
-                            data=base64.b64decode(b64_data),
-                            mime_type=file.get("mime", "application/pdf")
-                        )
-                    )
-                )
-        # Inject search results manually to avoid Gemini quota limits
-        if body.web_search:
-            try:
-                from duckduckgo_search import DDGS
-                ddgs = DDGS()
-                results = ddgs.text(body.message, max_results=4)
-                context_str = "Web Search Results:\n"
-                for r in results:
-                    context_str += f"- {r.get('title')}: {r.get('body')} ({r.get('href')})\n"
-                
-                search_prompt = f"\n\nYou must answer the user's latest query by referencing these web search results to provide accurate, up-to-date information:\n\n{context_str}"
-                user_parts.append(types.Part.from_text(text=search_prompt))
-            except Exception as e:
-                logger.error("DuckDuckGo search failed: %s", e)
-                # Fail gracefully if search fails
-
+                user_parts.append(types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=file.get("mime", "application/pdf")))
         contents.append(types.Content(role="user", parts=user_parts))
 
         config_kwargs = {
             "system_instruction": system + current_date_info
         }
 
-        try:
-            resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=contents,
-                config=types.GenerateContentConfig(**config_kwargs)
-            )
-            reply = resp.text
-        except Exception as api_err:
-            if "429" in str(api_err) or "RESOURCE_EXHAUSTED" in str(api_err) or "quota" in str(api_err).lower():
-                logger.info("Gemini quota exceeded. Falling back to DuckDuckGo Chat.")
-                from duckduckgo_search import DDGS
-                import asyncio
-                
-                import httpx
-                
-                poll_msgs = [{"role": "system", "content": system + current_date_info}]
-                for m in history[-5:]:
-                    poll_msgs.append({"role": "user" if m.get("role") == "user" else "assistant", "content": m.get("content", "")})
-                
-                user_content = body.message
-                if body.web_search:
-                    try:
-                        ddgs_s = DDGS()
-                        sr = ddgs_s.text(body.message, max_results=4)
-                        context_str = "Web Search Results:\n"
-                        for r in sr:
-                            context_str += f"- {r.get('title')}: {r.get('body')}\n"
-                        user_content += f"\n\n{context_str}"
-                    except:
-                        pass
-                
-                poll_msgs.append({"role": "user", "content": user_content})
-                
-                async with httpx.AsyncClient() as client:
-                    resp = await client.post("https://text.pollinations.ai/", json={"messages": poll_msgs}, timeout=60.0)
-                    if resp.status_code == 200:
-                         reply = resp.text
-                    else:
-                         reply = "Error: Free AI fallback also failed."
-            else:
-                raise api_err
+        resp = await ai_client.aio.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=contents,
+            config=types.GenerateContentConfig(**config_kwargs)
+        )
+        reply = resp.text
 
         if not reply:
             reply = "No response from model."
@@ -656,27 +617,16 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
             if "," in b64_data:
                 b64_data = b64_data.split(",", 1)[1]
             
+            config_kwargs = {"system_instruction": system_instruction}
             contents = [
-                types.Content(
-                    role="user",
-                    parts=[
-                        types.Part.from_text(text=user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")),
-                        types.Part(
-                            inline_data=types.Blob(
-                                data=base64.b64decode(b64_data),
-                                mime_type=mime_type
-                            )
-                        )
-                    ]
-                )
+                types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=mime_type),
+                user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
             ]
             
             resp = await ai_client.aio.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                )
+                config=types.GenerateContentConfig(**config_kwargs)
             )
             reply = resp.text
         else:
@@ -890,25 +840,17 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
     try:
         if files_data:
             import base64
-            user_parts = [types.Part.from_text(text=prompt)]
+            contents = [{"role": "system", "content": SYSTEM_PROMPTS["website"]}]
+            user_content = [prompt]
             for file in files_data:
                 b64_data = file["data"]
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
-                user_parts.append(
-                    types.Part(
-                        inline_data=types.Blob(
-                            data=base64.b64decode(b64_data),
-                            mime_type=file.get("mime", "application/pdf")
-                        )
-                    )
-                )
-            
-            contents = [types.Content(role="user", parts=user_parts)]
+                user_content.append(types.Part.from_bytes(data=base64.b64decode(b64_data), mime_type=file.get("mime", "application/pdf")))
             
             resp = await ai_client.aio.models.generate_content(
                 model='gemini-2.5-flash',
-                contents=contents,
+                contents=user_content,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPTS["website"]
                 )
@@ -1056,6 +998,7 @@ class PlanIn(BaseModel):
     id: str  # e.g., 'free', 'pro'
     name: str
     price: float
+    currency: str = "USD"
     credits: int
     purchasable: bool
     features: List[str] = []
@@ -1341,6 +1284,24 @@ async def admin_reject_payment(pid: str, admin=Depends(require_admin)):
 async def admin_list_subscriptions(_admin=Depends(require_admin)):
     docs = await db.subscriptions.find({}, {"_id": 0}).sort("start_date", -1).limit(500).to_list(500)
     return docs
+
+@api.delete("/admin/subscriptions/{sub_id}")
+async def admin_delete_subscription(sub_id: str, admin=Depends(require_admin)):
+    sub = await db.subscriptions.find_one({"id": sub_id})
+    if not sub:
+        raise HTTPException(404, "Subscription not found")
+    
+    await db.subscriptions.delete_one({"id": sub_id})
+    # Reset user to free plan
+    await db.users.update_one({"user_id": sub["user_id"]}, {"$set": {"plan": "free"}})
+    
+    await db.audit_log.insert_one({
+        "id": "aud_" + gen_id()[:8],
+        "ts": now_utc().isoformat(),
+        "admin_email": admin["email"],
+        "action": f"Deleted plan {sub['plan']} for user {sub['user_id']}"
+    })
+    return {"ok": True}
 
 
 # --- Admin: audit log ---
