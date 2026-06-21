@@ -537,12 +537,42 @@ async def chat_send(
             "system_instruction": system + current_date_info
         }
 
-        resp = await ai_client.aio.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=contents,
-            config=types.GenerateContentConfig(**config_kwargs)
-        )
-        reply = resp.text
+        try:
+            resp = await ai_client.aio.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=contents,
+                config=types.GenerateContentConfig(**config_kwargs)
+            )
+            reply = resp.text
+        except Exception as api_err:
+            if "429" in str(api_err) or "RESOURCE_EXHAUSTED" in str(api_err) or "quota" in str(api_err).lower():
+                logger.info("Gemini quota exceeded. Falling back to DuckDuckGo Chat.")
+                from duckduckgo_search import DDGS
+                import asyncio
+                
+                full_p = system + current_date_info + "\n\nRecent History:\n"
+                for m in history[-5:]:
+                    full_p += f"{m.get('role', '')}: {m.get('content', '')}\n"
+                
+                full_p += f"\nUser: {body.message}\n"
+                
+                if body.web_search:
+                    try:
+                        ddgs_s = DDGS()
+                        sr = ddgs_s.text(body.message, max_results=4)
+                        context_str = "Web Search Results:\n"
+                        for r in sr:
+                            context_str += f"- {r.get('title')}: {r.get('body')}\n"
+                        full_p += f"\n{context_str}\n"
+                    except:
+                        pass
+                
+                def do_chat():
+                    return DDGS().chat(full_p, model="gpt-4o-mini")
+                
+                reply = await asyncio.to_thread(do_chat)
+            else:
+                raise api_err
 
         if not reply:
             reply = "No response from model."
