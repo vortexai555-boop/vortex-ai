@@ -158,15 +158,15 @@ export default function ProductivityPage() {
               </label>
               <div className="relative">
                 <textarea 
-                  className="w-full bg-[#0A0A12] border border-white/10 rounded-xl p-4 pb-12 text-white placeholder-slate-500 focus:outline-none focus:border-[#00F0FF]/50 focus:ring-1 focus:ring-[#00F0FF]/50 min-h-[100px] resize-none transition-all"
+                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 pb-12 text-white focus:outline-none focus:border-grexo-cyan/50 focus:ring-1 focus:ring-grexo-cyan/50 min-h-[100px] resize-none transition-all"
                   placeholder="Type here..."
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                 />
                 <div className="absolute left-2 bottom-2">
-                  <label htmlFor="file-upload-prod-1" className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
-                    <PlusCircle size={20} weight="regular" className="pointer-events-none" />
-                    <input id="file-upload-prod-1" type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} />
+                  <label className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
+                    <PlusCircle size={20} weight="regular" />
+                    <input type="file" className="hidden" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
@@ -188,15 +188,15 @@ export default function ProductivityPage() {
               </label>
               <div className="relative">
                 <textarea 
-                  className="w-full bg-[#0A0A12] border border-white/10 rounded-xl p-4 pb-12 text-white placeholder-slate-500 focus:outline-none focus:border-[#00F0FF]/50 focus:ring-1 focus:ring-[#00F0FF]/50 min-h-[150px] resize-none transition-all"
+                  className="w-full bg-black/30 border border-white/10 rounded-xl p-4 pb-12 text-white focus:outline-none focus:border-grexo-cyan/50 focus:ring-1 focus:ring-grexo-cyan/50 min-h-[150px] resize-none transition-all"
                   placeholder="Paste the source text here..."
                   value={inputText}
                   onChange={e => setInputText(e.target.value)}
                 />
                 <div className="absolute left-2 bottom-2">
-                  <label htmlFor="file-upload-prod-2" className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
-                    <PlusCircle size={20} weight="regular" className="pointer-events-none" />
-                    <input id="file-upload-prod-2" type="file" accept="image/*,application/pdf" className="sr-only" onChange={handleFileChange} />
+                  <label className="p-2 flex justify-center items-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 cursor-pointer transition-colors" title="Upload file or image">
+                    <PlusCircle size={20} weight="regular" />
+                    <input type="file" className="hidden" onChange={handleFileChange} />
                   </label>
                 </div>
               </div>
@@ -228,7 +228,7 @@ export default function ProductivityPage() {
                 </div>
                 <input 
                   type="file" 
-                  className="sr-only" 
+                  className="hidden" 
                   accept={activeTool.fileAccept}
                   onChange={handleFileChange}
                 />
@@ -247,7 +247,7 @@ export default function ProductivityPage() {
         </div>
 
         <Button 
-          className="w-full mt-8 bg-grexo-cyan hover:bg-grexo-cyan/80 text-black font-semibold rounded-xl py-6 glow-cyan"
+          className="w-full mt-8 h-14 btn-primary-grexo rounded-xl text-base"
           onClick={handleGenerate}
           disabled={loading || user?.credits < 1}
         >
