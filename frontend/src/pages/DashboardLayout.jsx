@@ -30,7 +30,7 @@ export default function DashboardLayout() {
   };
 
   const SidebarInner = (
-    <aside className="h-full w-64 bg-Grexo-surface border-r border-white/5 flex flex-col">
+    <aside className="h-full w-64 bg-grexo-surface border-r border-white/5 flex flex-col">
       <div className="p-5 border-b border-white/5">
         <GrexoLogo size={32} />
       </div>
@@ -64,7 +64,7 @@ export default function DashboardLayout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
                   isActive
-                    ? "bg-Grexo-cyan/10 text-Grexo-cyan border border-Grexo-cyan/30"
+                    ? "bg-grexo-cyan/10 text-grexo-cyan border border-grexo-cyan/30"
                     : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
                 }`
               }
@@ -81,7 +81,7 @@ export default function DashboardLayout() {
           <div className="mt-1 text-xs text-slate-500 capitalize">{user?.plan || "free"} plan</div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-Grexo-cyan/30 to-Grexo-purple/30 flex items-center justify-center text-sm font-medium">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-grexo-cyan/30 to-grexo-purple/30 flex items-center justify-center text-sm font-medium">
             {user?.picture ? <img src={user.picture} alt="" className="w-full h-full rounded-full object-cover" /> : (user?.name || "?").charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
@@ -97,7 +97,7 @@ export default function DashboardLayout() {
   );
 
   return (
-    <div className="flex h-full bg-Grexo-bg text-white overflow-hidden">
+    <div className="flex h-screen bg-grexo-bg text-white overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden md:block">{SidebarInner}</div>
       {/* Mobile sidebar */}
@@ -108,7 +108,7 @@ export default function DashboardLayout() {
         </div>
       )}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-white/5 bg-Grexo-surface">
+        <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-white/5 bg-grexo-surface">
           <Button variant="ghost" size="icon" onClick={() => setOpen(true)} data-testid="open-sidebar">
             <List size={20} />
           </Button>
