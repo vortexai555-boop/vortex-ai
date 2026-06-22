@@ -110,14 +110,10 @@ useEffect(() => {
     setAttachments([]);
 
     // Optimistic add
-    let displayMsg = text;
-    if (attachments.length > 0) {
-      displayMsg = text ? `${text}\n\n*[Attached ${attachments.length} file(s)]*` : `*[Attached ${attachments.length} file(s)]*`;
-    }
-    const optimistic = { role: "user", content: displayMsg, ts: new Date().toISOString() };
+    const optimistic = { role: "user", content: text, files: filesBase64, ts: new Date().toISOString() };
     setCurrent((c) => c ? { ...c, messages: [...(c.messages || []), optimistic] } : { id: null, messages: [optimistic], title: text ? text.slice(0, 60) : "New chat" });
     try {
-      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: displayMsg, tool: "chat", web_search: webSearch, files: filesBase64 });
+      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch, files: filesBase64 });
       const newCid = r.data.conversation_id;
       const aiMsg = { role: "assistant", content: r.data.reply, ts: new Date().toISOString() };
       setCurrent((c) => ({ ...(c || {}), id: newCid, messages: [...(c?.messages || []), aiMsg] }));
@@ -315,7 +311,23 @@ useEffect(() => {
                         {copiedIndex === i ? <Check size={16} weight="bold" className="text-grexo-cyan" /> : <Copy size={16} />}
                       </button>
                     )}
-                    {m.role === "assistant" ? <Markdown source={m.content} /> : <div className="whitespace-pre-wrap leading-relaxed">{m.content}</div>}
+                    {m.role === "assistant" ? <Markdown source={m.content} /> : (
+                      <div className="flex flex-col gap-2">
+                        <div className="whitespace-pre-wrap leading-relaxed">{m.content}</div>
+                        {m.files && m.files.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {m.files.map((file, fIdx) => {
+                              const src = file.data.includes(',') ? file.data : `data:${file.mime || 'image/png'};base64,${file.data}`;
+                              return (!file.mime || file.mime.startsWith('image/')) ? (
+                                <img key={fIdx} src={src} alt="attachment" className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-white/10" />
+                              ) : (
+                                <div key={fIdx} className="bg-white/10 px-3 py-1.5 rounded text-xs truncate max-w-[200px] border border-white/5">📄 Document</div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
