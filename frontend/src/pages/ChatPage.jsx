@@ -376,9 +376,12 @@ useEffect(() => {
                 <PaperPlaneRight size={16} weight="fill" />
               </Button>
             </div>
-            <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-between">
-              <span>Grexo can make mistakes. Verify important info.</span>
-              <span className="text-grexo-cyan">Tip: Toggle Web Search on for accurate, up-to-date answers!</span>
+            <div className="mt-3 flex flex-col items-center gap-2 pb-2">
+              <span className="text-[11px] text-slate-500">Grexo can make mistakes. Verify important info.</span>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-[11px] font-medium text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+                <Globe size={14} weight="fill" className="animate-pulse text-cyan-400" />
+                Tip: Toggle Web Search for the most accurate, up-to-date answers!
+              </div>
             </div>
           </div>
         </form>
