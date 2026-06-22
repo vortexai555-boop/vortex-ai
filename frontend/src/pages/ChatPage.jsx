@@ -90,12 +90,12 @@ useEffect(() => {
     }
   }, [current?.messages, sending, isAtBottom]);
   
-    const send = async (e) => {
-      e?.preventDefault();
-      const text = input.trim();
-      if ((!text && attachments.length === 0) || sending) return;
-      setInput("");
-      setSending(true);
+  const send = async (e) => {
+    e?.preventDefault();
+    const text = input.trim();
+    if ((!text && attachments.length === 0) || sending) return;
+    setInput("");
+    setSending(true);
 
     const filesBase64 = await Promise.all(
       attachments.map((file) => {
@@ -110,8 +110,9 @@ useEffect(() => {
     setAttachments([]);
 
     // Optimistic add
-    const optimistic = { role: "user", content: text, files: filesBase64, ts: new Date().toISOString() };
-    setCurrent((c) => c ? { ...c, messages: [...(c.messages || []), optimistic] } : { id: null, messages: [optimistic], title: text ? text.slice(0, 60) : "New chat" });
+    const displayContent = text ? text : "[Attached Image]";
+    const optimistic = { role: "user", content: displayContent, ts: new Date().toISOString() };
+    setCurrent((c) => c ? { ...c, messages: [...(c.messages || []), optimistic] } : { id: null, messages: [optimistic], title: displayContent.slice(0, 60) });
     try {
       const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch, files: filesBase64 });
       const newCid = r.data.conversation_id;
@@ -311,23 +312,7 @@ useEffect(() => {
                         {copiedIndex === i ? <Check size={16} weight="bold" className="text-grexo-cyan" /> : <Copy size={16} />}
                       </button>
                     )}
-                    {m.role === "assistant" ? <Markdown source={m.content} /> : (
-                      <div className="flex flex-col gap-2">
-                        <div className="whitespace-pre-wrap leading-relaxed">{m.content}</div>
-                        {m.files && m.files.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {m.files.map((file, fIdx) => {
-                              const src = file.data.includes(',') ? file.data : `data:${file.mime || 'image/png'};base64,${file.data}`;
-                              return (!file.mime || file.mime.startsWith('image/')) ? (
-                                <img key={fIdx} src={src} alt="attachment" className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-white/10" />
-                              ) : (
-                                <div key={fIdx} className="bg-white/10 px-3 py-1.5 rounded text-xs truncate max-w-[200px] border border-white/5">📄 Document</div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    {m.role === "assistant" ? <Markdown source={m.content} /> : <div className="whitespace-pre-wrap leading-relaxed">{m.content}</div>}
                   </div>
                 </motion.div>
               ))}
@@ -362,25 +347,13 @@ useEffect(() => {
               </div>
             )}
             <div className="glass-strong rounded-2xl p-2 flex items-end gap-2">
-              <button 
-                type="button" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById('file-upload-chat').click();
-                }}
-                className="h-11 px-3 mt-auto flex items-center justify-center text-slate-500 hover:text-slate-300 cursor-pointer transition-colors" 
-                title="Upload file or image"
-              >
+              <label htmlFor="file-upload-chat" className="h-11 px-3 mt-auto flex items-center justify-center text-slate-500 hover:text-slate-300 cursor-pointer transition-colors" title="Upload file or image">
                 <PlusCircle size={24} weight="regular" className="pointer-events-none" />
-              </button>
-              <input 
-                id="file-upload-chat" 
-                type="file" 
-                multiple 
-                accept="image/*,application/pdf" 
-                style={{ display: "none" }} 
-                onChange={handleFileChange} 
-              />
+                <input id="file-upload-chat" type="file" multiple accept="image/*,application/pdf" className="sr-only" onChange={(e) => {
+                  console.log("File selected:", e.target.files);
+                  handleFileChange(e);
+                }} />
+              </label>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -399,18 +372,11 @@ useEffect(() => {
               >
                 <Globe size={20} weight={webSearch ? "fill" : "regular"} />
               </Button>
-              <Button type="submit" disabled={sending || (!input.trim() && attachments.length === 0)} className="btn-primary-grexo h-11 px-5" data-testid="chat-send">
+              <Button type="submit" disabled={sending || !input.trim()} className="btn-primary-grexo h-11 px-5" data-testid="chat-send">
                 <PaperPlaneRight size={16} weight="fill" />
               </Button>
             </div>
-            <div className="mt-2 flex flex-col items-center gap-1">
-              {!webSearch && (
-                <div className="text-[12px] text-amber-500/80 bg-amber-500/10 px-3 py-1 rounded-full flex items-center gap-1">
-                  <Globe size={12} /> For accurate / real-time answers, please toggle on Web Search.
-                </div>
-              )}
-              <div className="text-[11px] text-slate-500 text-center">Grexo can make mistakes. Verify important info.</div>
-            </div>
+            <div className="mt-2 text-[11px] text-slate-500 text-center">Grexo can make mistakes. Verify important info.</div>
           </div>
         </form>
       </section>
