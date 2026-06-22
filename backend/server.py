@@ -597,10 +597,14 @@ async def chat_send(
 
         import httpx
         async with httpx.AsyncClient(timeout=60.0) as client:
-            search_param = "?search=true" if body.web_search else ""
+            json_payload = {
+                "messages": pollinations_messages,
+                "model": "openai"
+            }
+            
             resp = await client.post(
-                f"https://text.pollinations.ai/{search_param}",
-                json={"messages": pollinations_messages}
+                "https://text.pollinations.ai/",
+                json=json_payload
             )
             resp.raise_for_status()
             reply = resp.text
