@@ -50,6 +50,48 @@ export default function WebsitePage() {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const parseFiles = (text) => {
+    if (!text) return { preview: "", files: {} };
+    const files = {};
+    let htmlPreview = "";
+
+    const blocks = text.split("```");
+    for (let i = 1; i < blocks.length; i += 2) {
+      const block = blocks[i];
+      const lines = block.split('\n');
+      const lang = lines.shift().trim();
+      if (lines.length === 0) continue;
+      
+      let content = lines.join('\n');
+      let filename = `file_${i}.${lang || 'txt'}`;
+      
+      const firstLine = lines[0].trim();
+      let match = firstLine.match(/<!--\s*(.+?)\s*-->/);
+      if (!match) match = firstLine.match(/\/\*\s*(.+?)\s*\*\//);
+      if (!match) match = firstLine.match(/#\s*(.+)/);
+      if (!match) match = firstLine.match(/\/\/\s*(.+)/);
+      
+      if (match && match[1] && match[1].includes('.')) {
+        filename = match[1].trim();
+      } else {
+        if (lang === 'html' && !files['index.html']) filename = 'index.html';
+        else if (lang === 'css' && !files['style.css']) filename = 'style.css';
+        else if ((lang === 'javascript' || lang === 'js') && !files['script.js']) filename = 'script.js';
+        else if (lang === 'python' && !files['app.py']) filename = 'app.py';
+      }
+
+      if (filename === 'index.html' || (lang === 'html' && !htmlPreview)) {
+        htmlPreview = content;
+      }
+      files[filename] = content;
+    }
+    
+    if (Object.keys(files).length === 0) {
+      return { preview: text, files: { 'index.html': text } };
+    }
+    return { preview: htmlPreview || "<html><body><h1>Backend code generated!</h1><p>Check the Code tab or download the ZIP.</p></body></html>", files };
+  };
+
   const loadHistory = async () => {
     try {
       const r = await api.get("/website");
@@ -128,14 +170,20 @@ export default function WebsitePage() {
 
   const downloadHtml = () => {
     if (!current?.html) return;
-    const blob = new Blob([current.html], { type: "text/html" });
+    const { preview } = parseFiles(current.html);
+    const blob = new Blob([preview], { type: "text/html" });
     saveAs(blob, `grexo-site-${current.id || Date.now()}.html`);
   };
 
   const downloadZip = async () => {
     if (!current?.html) return;
     const zip = new JSZip();
-    zip.file("index.html", current.html);
+    const { files } = parseFiles(current.html);
+    
+    for (const [filename, content] of Object.entries(files)) {
+      zip.file(filename, content);
+    }
+    
     zip.file("README.md", `# grexo ai Generated Site\n\nPrompt: ${current.description || description}\nGenerated: ${new Date().toISOString()}\n\n## To preview\nOpen index.html in any browser.\n`);
     const blob = await zip.generateAsync({ type: "blob" });
     saveAs(blob, `grexo-site-${current.id || Date.now()}.zip`);
@@ -261,7 +309,7 @@ export default function WebsitePage() {
                         <div className="rounded-xl overflow-hidden border border-white/5 bg-white">
                           <iframe
                             ref={iframeRef}
-                            srcDoc={current.html}
+                            srcDoc={parseFiles(current.html).preview}
                             title="Generated website preview"
                             sandbox="allow-scripts"
                             className="w-full h-[640px] bg-white"
