@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { Sandpack } from "@codesandbox/sandpack-react";
 
 const SITE_TYPES = [
   { v: "landing", l: "Landing Page" },
@@ -53,146 +54,166 @@ export default function WebsitePage() {
   };
 
   const parseFiles = (text) => {
-    if (!text) return { preview: "", files: {} };
-    const files = {};
-    let htmlPreview = "";
-
-    const blocks = text.split("```");
-    if (blocks.length > 1) {
-      for (let i = 1; i < blocks.length; i += 2) {
-        const block = blocks[i];
-        const lines = block.split('\n');
-        const langInfo = lines.shift().trim();
-        const lang = langInfo.split(' ')[0].toLowerCase();
-        if (lines.length === 0) continue;
-        
-        let content = lines.join('\n');
-        let filename = `file_${i}.${lang || 'txt'}`;
-        
-        const firstLine = lines[0].trim();
-        let match = firstLine.match(/<!--\s*([a-zA-Z0-9_\-\.]+)\s*-->/);
-        if (!match) match = firstLine.match(/\/\*\s*([a-zA-Z0-9_\-\.]+)\s*\*\//);
-        if (!match) match = firstLine.match(/#\s*([a-zA-Z0-9_\-\.]+)/);
-        if (!match) match = firstLine.match(/\/\/\s*([a-zA-Z0-9_\-\.]+)/);
-        
-        if (match && match[1] && match[1].includes('.')) {
-          filename = match[1].trim();
-        } else {
-          if (lang === 'html' && !files['index.html']) filename = 'index.html';
-          else if (lang === 'css' && !files['style.css']) filename = 'style.css';
-          else if ((lang === 'javascript' || lang === 'js' || lang === 'jsx' || lang === 'tsx') && !files['App.jsx'] && !files['script.js']) {
-             filename = (lang === 'jsx' || lang === 'tsx' || content.includes('import React') || content.includes('export default function')) ? 'App.jsx' : 'script.js';
-          }
-          else if (lang === 'python' && !files['app.py']) filename = 'app.py';
-          else if (lang === 'json' && !files['package.json']) filename = 'package.json';
-        }
-
-        if (filename.toLowerCase() === 'index.html' || (lang === 'html' && !htmlPreview)) {
-          htmlPreview = content;
-          filename = 'index.html';
-        }
-        files[filename] = content;
-      }
+    if (!text) return { projectType: 'html', preview: "", files: {} };
+    
+    let parsedData = null;
+    let files = {};
+    let projectType = 'html';
+    let framework = 'vanilla';
+    
+    // First, try standard JSON parsing
+    try {
+       // Allow for markdown-wrapped JSON
+       let cleanText = text.trim();
+       if (cleanText.startsWith('```json')) {
+          cleanText = cleanText.substring(7);
+          if (cleanText.endsWith('```')) cleanText = cleanText.substring(0, cleanText.length - 3);
+       } else if (cleanText.startsWith('```')) {
+          cleanText = cleanText.substring(3);
+          if (cleanText.endsWith('```')) cleanText = cleanText.substring(0, cleanText.length - 3);
+       }
+       
+       const startIndex = cleanText.indexOf('{');
+       const endIndex = cleanText.lastIndexOf('}');
+       if (startIndex >= 0 && endIndex >= 0) {
+           parsedData = JSON.parse(cleanText.substring(startIndex, endIndex + 1));
+       }
+    } catch (e) {
+       console.log('JSON parse failed, falling back to markdown block parser', e);
+    }
+    
+    if (parsedData && parsedData.files) {
+       files = parsedData.files;
+       projectType = parsedData.projectType || 'html';
+       framework = parsedData.framework || 'vanilla';
     } else {
-      if (text.includes("<!DOCTYPE html>") || text.includes("<html")) {
-         htmlPreview = text;
-         files['index.html'] = text;
-      } else {
-         files['output.txt'] = text;
-      }
-    }
-    
-    if (Object.keys(files).length === 0) {
-      const escapedText = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return { 
-        preview: `<html><body style="font-family: sans-serif; padding: 2rem; background: #111; color: #ccc; white-space: pre-wrap; word-wrap: break-word;">${escapedText}</body></html>`, 
-        files: { 'output.txt': text } 
-      };
-    }
-    
-    const isReact = Object.keys(files).some(f => f.endsWith('.jsx') || f.endsWith('.tsx') || files[f].includes('import React'));
-
-    if (!htmlPreview) {
-       if (isReact) {
-         htmlPreview = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>React Preview</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.2.0",
-      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-      "react-dom": "https://esm.sh/react-dom@18.2.0",
-      "lucide-react": "https://esm.sh/lucide-react@0.344.0",
-      "clsx": "https://esm.sh/clsx@2.1.0",
-      "tailwind-merge": "https://esm.sh/tailwind-merge@2.2.1",
-      "framer-motion": "https://esm.sh/framer-motion@11.0.8",
-      "recharts": "https://esm.sh/recharts@2.12.2"
-    }
-  }
-  </script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <style>
-     #error-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); color: #ff5555; padding: 2rem; font-family: monospace; z-index: 9999; white-space: pre-wrap; overflow-y: auto; }
-     body { margin: 0; padding: 0; }
-  </style>
-  <script>
-    window.onerror = function(msg, url, lineNo, columnNo, error) {
-       showError(msg + '\\nLine: ' + lineNo);
-       return false;
-    };
-    function showError(err) {
-       const el = document.getElementById('error-overlay');
-       if (el) { el.style.display = 'block'; el.textContent += err + '\\n\\n'; }
-    }
-    const originalError = console.error;
-    console.error = function(...args) {
-       showError(args.join(' '));
-       originalError.apply(console, args);
-    }
-  </script>
-</head>
-<body>
-  <div id="root"></div>
-  <div id="error-overlay"></div>
-</body>
-</html>`;
+       // Markdown parser fallback
+       const blocks = text.split("```");
+       if (blocks.length > 1) {
+         for (let i = 1; i < blocks.length; i += 2) {
+           const block = blocks[i];
+           const lines = block.split('\n');
+           const langInfo = lines.shift().trim();
+           const lang = langInfo.split(' ')[0].toLowerCase();
+           if (lines.length === 0) continue;
+           
+           let content = lines.join('\n');
+           let filename = `file_${i}.${lang || 'txt'}`;
+           
+           const firstLine = lines[0].trim();
+           let match = firstLine.match(/<!--\s*([a-zA-Z0-9_\-\.\/]+)\s*-->/);
+           if (!match) match = firstLine.match(/\/\*\s*([a-zA-Z0-9_\-\.\/]+)\s*\*\//);
+           if (!match) match = firstLine.match(/#\s*([a-zA-Z0-9_\-\.\/]+)/);
+           if (!match) match = firstLine.match(/\/\/\s*([a-zA-Z0-9_\-\.\/]+)/);
+           
+           if (match && match[1] && match[1].includes('.')) {
+             filename = match[1].trim();
+           } else {
+             if (lang === 'html' && !files['index.html']) filename = 'index.html';
+             else if (lang === 'css' && !files['style.css']) filename = 'style.css';
+             else if ((lang === 'javascript' || lang === 'js' || lang === 'jsx' || lang === 'tsx') && !files['App.jsx'] && !files['script.js']) {
+                filename = (lang === 'jsx' || lang === 'tsx' || content.includes('import React') || content.includes('export default function')) ? 'App.jsx' : 'script.js';
+             }
+             else if (lang === 'python' && !files['app.py']) filename = 'app.py';
+             else if (lang === 'json' && !files['package.json']) filename = 'package.json';
+           }
+           files[filename] = content;
+         }
        } else {
-         htmlPreview = `<!DOCTYPE html>
-<html>
-<head>
-    <title>Preview</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-     #error-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); color: #ff5555; padding: 2rem; font-family: monospace; z-index: 9999; white-space: pre-wrap; overflow-y: auto; }
-    </style>
-    <script>
-      window.onerror = function(msg, url, lineNo, columnNo, error) {
-         showError(msg + '\\nLine: ' + lineNo);
-         return false;
-      };
-      function showError(err) {
-         const el = document.getElementById('error-overlay');
-         if (el) { el.style.display = 'block'; el.textContent += err + '\\n\\n'; }
-      }
-    </script>
-</head>
-<body>
-    <div id="root"></div>
-    <div id="error-overlay"></div>
-</body>
-</html>`;
+         if (text.includes("<!DOCTYPE html>") || text.includes("<html")) {
+            files['index.html'] = text;
+         } else {
+            files['output.txt'] = text;
+         }
+       }
+       
+       const isReact = Object.keys(files).some(f => f.endsWith('.jsx') || f.endsWith('.tsx') || files[f].includes('import React'));
+       const pkgKey = Object.keys(files).find(f => f.toLowerCase() === 'package.json');
+       let hasNext = false;
+       let hasReact = false;
+       if (pkgKey) {
+           try {
+               const pkg = JSON.parse(files[pkgKey]);
+               if (pkg.dependencies) {
+                   hasReact = !!pkg.dependencies['react'];
+                   hasNext = !!pkg.dependencies['next'];
+               }
+           } catch(e) {}
+       }
+       
+       if (hasNext) {
+           projectType = 'nextjs';
+       } else if (isReact || hasReact) {
+           projectType = 'react';
        }
     }
+    
+    if (projectType === 'react' || projectType === 'nextjs') {
+       if (!files['package.json']) {
+           files['package.json'] = JSON.stringify({
+              name: projectType === 'nextjs' ? "next-app" : "react-app",
+              dependencies: {
+                "react": "^18.2.0",
+                "react-dom": "^18.2.0",
+                "lucide-react": "latest",
+                "framer-motion": "latest",
+                "recharts": "latest",
+                "tailwindcss": "latest",
+                "postcss": "latest",
+                "autoprefixer": "latest",
+                ...(projectType === 'nextjs' ? { "next": "latest" } : {})
+              }
+           }, null, 2);
+       }
+    }
+    
+    // Normalize Next.js
+    if (projectType === 'nextjs') {
+        const hasAppPage = files['app/page.jsx'] || files['app/page.tsx'] || files['pages/index.jsx'] || files['pages/index.tsx'];
+        if (!hasAppPage) {
+           const appFile = Object.keys(files).find(f => f.endsWith('App.jsx') || f.endsWith('App.tsx') || f.endsWith('App.js') || f.includes('page.') || f.includes('index.js'));
+           if (appFile) {
+               files['pages/index.js'] = `import React from "react";\nimport App from "../${appFile}";\n\nexport default function Home() { return <App />; }\n`;
+           }
+        }
+    }
+    
+    // Normalize index.js for React
+    if (projectType === 'react') {
+        const hasIndexHtml = files['index.html'] || files['public/index.html'];
+        if (!hasIndexHtml) {
+           files['public/index.html'] = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <script src="https://cdn.tailwindcss.com"></script>\n  <title>React App</title>\n</head>\n<body>\n  <div id="root"></div>\n</body>\n</html>`;
+        } else {
+           const indexKey = files['public/index.html'] ? 'public/index.html' : 'index.html';
+           if (!files[indexKey].includes('tailwindcss')) {
+               files[indexKey] = files[indexKey].replace('</head>', `  <script src="https://cdn.tailwindcss.com"></script>\n</head>`);
+           }
+        }
+        
+        const hasMainFile = files['src/index.jsx'] || files['src/main.jsx'] || files['index.js'] || files['src/index.js'] || files['main.jsx'];
+        if (!hasMainFile) {
+           const appFile = Object.keys(files).find(f => f.endsWith('App.jsx') || f.endsWith('App.tsx') || f.endsWith('App.js'));
+           if (appFile) {
+               const cleanAppFile = appFile.replace('src/', '').replace('.js', '').replace('.jsx', '').replace('.tsx', '');
+               files['src/index.js'] = `import React from "react";\nimport { createRoot } from "react-dom/client";\nimport App from "./${cleanAppFile}";\nimport "./style.css";\n\nconst root = createRoot(document.getElementById("root"));\nroot.render(<App />);\n`;
+               // Also make sure we have a style.css if imported
+               if (!files['style.css'] && !files['src/style.css']) {
+                  files['src/style.css'] = `/* Global Styles */\n`;
+               }
+           }
+        }
+    }
 
-    if (htmlPreview) {
-      // Inject Error overlay if not exists
-      if (!htmlPreview.includes('error-overlay')) {
-         const overlayContent = `<div id="error-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); color: #ff5555; padding: 2rem; font-family: monospace; z-index: 9999; white-space: pre-wrap; overflow-y: auto;"></div>
+    let htmlPreview = "";
+    
+    if (projectType === 'html' || projectType === 'vanilla') {
+        let indexKey = Object.keys(files).find(k => k.toLowerCase() === 'index.html') || Object.keys(files).find(k => k.endsWith('.html'));
+        if (indexKey) htmlPreview = files[indexKey];
+        
+        if (htmlPreview) {
+          // Inject Error overlay
+          if (!htmlPreview.includes('error-overlay')) {
+             const overlayContent = `<div id="error-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); color: #ff5555; padding: 2rem; font-family: monospace; z-index: 9999; white-space: pre-wrap; overflow-y: auto;"></div>
 <script>
     window.onerror = function(msg, url, lineNo, columnNo, error) {
        const el = document.getElementById('error-overlay');
@@ -200,71 +221,57 @@ export default function WebsitePage() {
        return false;
     };
 </script></body>`;
-         htmlPreview = htmlPreview.replace('</body>', overlayContent);
-      }
-
-      let injectedStyles = "";
-      let combinedScript = "";
-      let hasCombinedScripts = false;
-
-      for (const [fname, fcontent] of Object.entries(files)) {
-        if (fname.endsWith('.css')) {
-          if (!htmlPreview.includes(fcontent.substring(0, 20))) {
-            injectedStyles += `\n<style>\n/* ${fname} */\n${fcontent}\n</style>\n`;
+             htmlPreview = htmlPreview.replace('</body>', overlayContent);
           }
-        }
-      }
 
-      for (const [fname, fcontent] of Object.entries(files)) {
-        if (fname.endsWith('.js') || fname.endsWith('.jsx') || fname.endsWith('.ts') || fname.endsWith('.tsx')) {
-          if (['vite.config.js', 'tailwind.config.js', 'postcss.config.js', 'server.js', 'app.js', 'components.json'].includes(fname.toLowerCase())) continue;
+          let injectedStyles = "";
+          let combinedScript = "";
+
+          for (const [fname, fcontent] of Object.entries(files)) {
+            if (fname.endsWith('.css') && fname !== indexKey) {
+              if (!htmlPreview.includes(fcontent.substring(0, 20))) {
+                injectedStyles += `\n<style>\n/* ${fname} */\n${fcontent}\n</style>\n`;
+              }
+            } else if ((fname.endsWith('.js') || fname.endsWith('.ts')) && fname !== indexKey) {
+               if (!['vite.config.js', 'tailwind.config.js', 'postcss.config.js', 'server.js', 'app.js', 'components.json'].includes(fname.toLowerCase())) {
+                  combinedScript += `\n<script>\n// ${fname}\n${fcontent}\n</script>\n`;
+               }
+            }
+          }
+
+          if (htmlPreview.includes('</head>')) {
+            htmlPreview = htmlPreview.replace('</head>', `${injectedStyles}</head>`);
+          } else {
+            htmlPreview += injectedStyles;
+          }
+
+          if (htmlPreview.includes('</body>')) {
+            htmlPreview = htmlPreview.replace('</body>', `${combinedScript}</body>`);
+          } else {
+            htmlPreview += combinedScript;
+          }
           
-          if (!htmlPreview.includes(fcontent.substring(0, 20))) {
-             if (isReact) {
-                hasCombinedScripts = true;
-                combinedScript += `\n/* --- ${fname} --- */\n`;
-                combinedScript += fcontent
-                   .replace(/import\s+.*?\s+from\s+['"]([\.@\/][a-zA-Z0-9_\-\/\.]+)['"];?/g, '') 
-                   .replace(/import\s+['"]([\.@\/][a-zA-Z0-9_\-\/\.]+)['"];?/g, '')
-                   .replace(/export\s+default\s+function\s+([a-zA-Z0-9_]+)/g, 'function $1\nwindow.App = $1;')
-                   .replace(/export\s+const\s+([a-zA-Z0-9_]+)/g, 'const $1')
-                   .replace(/export\s+default\s+([a-zA-Z0-9_]+);?/g, 'window.App = $1;')
-                   .replace(/export\s+\{\s*([a-zA-Z0-9_,\s]+)\s*\};?/g, '');
-             } else {
-                combinedScript += `\n<script>\n// ${fname}\n${fcontent}\n</script>\n`;
-             }
+          if (!htmlPreview.includes('tailwindcss') && !htmlPreview.includes('tailwind.min.css') && htmlPreview.includes('class=')) {
+            const tailwindCdn = `<script src="https://cdn.tailwindcss.com"></script>\n</head>`;
+            if (htmlPreview.includes('</head>')) {
+              htmlPreview = htmlPreview.replace('</head>', tailwindCdn);
+            } else {
+              htmlPreview = `<script src="https://cdn.tailwindcss.com"></script>\n` + htmlPreview;
+            }
           }
         }
-      }
-
-      if (isReact && hasCombinedScripts) {
-         let renderCode = `\n/* --- Auto Render --- */\nimport React from 'react';\nimport { createRoot } from 'react-dom/client';\nconst ComponentToRender = window.App || (typeof App !== 'undefined' ? App : null);\nif (ComponentToRender) {\n  const root = createRoot(document.getElementById('root'));\n  root.render(<ComponentToRender />);\n}\n`;
-         combinedScript = `\n<script type="text/babel" data-type="module">\n${combinedScript}\n${renderCode}\n</script>\n`;
-      }
-
-      if (htmlPreview.includes('</head>')) {
-        htmlPreview = htmlPreview.replace('</head>', `${injectedStyles}</head>`);
-      } else {
-        htmlPreview += injectedStyles;
-      }
-
-      if (htmlPreview.includes('</body>')) {
-        htmlPreview = htmlPreview.replace('</body>', `${combinedScript}</body>`);
-      } else {
-        htmlPreview += combinedScript;
-      }
-      
-      if (!htmlPreview.includes('tailwindcss') && !htmlPreview.includes('tailwind.min.css') && htmlPreview.includes('class=')) {
-        const tailwindCdn = `<script src="https://cdn.tailwindcss.com"></script>\n</head>`;
-        if (htmlPreview.includes('</head>')) {
-          htmlPreview = htmlPreview.replace('</head>', tailwindCdn);
-        } else {
-          htmlPreview = `<script src="https://cdn.tailwindcss.com"></script>\n` + htmlPreview;
-        }
-      }
     }
 
-    return { preview: htmlPreview, files };
+    if (Object.keys(files).length === 0) {
+      const escapedText = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return { 
+        projectType: 'text',
+        preview: `<html><body style="font-family: sans-serif; padding: 2rem; background: #111; color: #ccc; white-space: pre-wrap; word-wrap: break-word;">${escapedText}</body></html>`, 
+        files: { 'output.txt': text } 
+      };
+    }
+    
+    return { projectType, framework, preview: htmlPreview, files };
   };
 
   const loadHistory = async () => {
@@ -481,15 +488,37 @@ export default function WebsitePage() {
                         </div>
                       </div>
                       <TabsContent value="preview" className="m-0">
-                        <div className="rounded-xl overflow-hidden border border-white/5 bg-white">
+                        <div className="rounded-xl overflow-hidden border border-white/5 bg-white relative">
+                          {parseFiles(current.html).projectType === 'react' || parseFiles(current.html).projectType === 'nextjs' ? (
+                            <div className="w-full h-[640px] [&_.sp-wrapper]:!h-full [&_.sp-layout]:!h-full [&_.sp-preview]:!h-full [&_.sp-preview-container]:!h-full [&_.sp-editor]:!h-full">
+                               <Sandpack
+                                 template={parseFiles(current.html).projectType}
+                                 theme="dark"
+                                 files={parseFiles(current.html).files}
+                                 options={{ 
+                                    showNavigator: true, 
+                                    showTabs: true, 
+                                    showConsole: true, 
+                                    showConsoleButton: true,
+                                    editorHeight: 640 
+                                 }}
+                                 customSetup={{
+                                     dependencies: Object.keys(parseFiles(current.html).files).includes('package.json') 
+                                        ? JSON.parse(parseFiles(current.html).files['package.json']).dependencies || {} 
+                                        : { "framer-motion": "latest", "lucide-react": "latest", "recharts": "latest", "tailwindcss": "latest", "postcss": "latest", "autoprefixer": "latest" }
+                                 }}
+                               />
+                            </div>
+                          ) : (
                           <iframe
                             ref={iframeRef}
                             srcDoc={parseFiles(current.html).preview}
                             title="Generated website preview"
-                            sandbox="allow-scripts"
+                            sandbox="allow-scripts allow-same-origin allow-popups"
                             className="w-full h-[640px] bg-white"
                             data-testid="website-preview-iframe"
                           />
+                          )}
                         </div>
                       </TabsContent>
                       <TabsContent value="code" className="m-0">
