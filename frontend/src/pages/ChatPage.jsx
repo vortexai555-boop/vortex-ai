@@ -372,11 +372,14 @@ useEffect(() => {
               >
                 <Globe size={20} weight={webSearch ? "fill" : "regular"} />
               </Button>
-              <Button type="submit" disabled={sending || !input.trim()} className="btn-primary-grexo h-11 px-5" data-testid="chat-send">
+              <Button type="submit" disabled={sending || (!input.trim() && attachments.length === 0)} className="btn-primary-grexo h-11 px-5" data-testid="chat-send">
                 <PaperPlaneRight size={16} weight="fill" />
               </Button>
             </div>
-            <div className="mt-2 text-[11px] text-slate-500 text-center">Grexo can make mistakes. Verify important info.</div>
+            <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-between">
+              <span>Grexo can make mistakes. Verify important info.</span>
+              <span className="text-grexo-cyan">Tip: Toggle Web Search on for accurate, up-to-date answers!</span>
+            </div>
           </div>
         </form>
       </section>
