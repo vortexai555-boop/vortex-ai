@@ -35,6 +35,7 @@ export default function WebsitePage() {
   const [siteType, setSiteType] = useState("landing");
   const [generating, setGenerating] = useState(false);
   const [current, setCurrent] = useState(null); // { id, html, description }
+  const [selectedFile, setSelectedFile] = useState('');
   const [history, setHistory] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const iframeRef = useRef(null);
@@ -56,40 +57,56 @@ export default function WebsitePage() {
     let htmlPreview = "";
 
     const blocks = text.split("```");
-    for (let i = 1; i < blocks.length; i += 2) {
-      const block = blocks[i];
-      const lines = block.split('\n');
-      const lang = lines.shift().trim();
-      if (lines.length === 0) continue;
-      
-      let content = lines.join('\n');
-      let filename = `file_${i}.${lang || 'txt'}`;
-      
-      const firstLine = lines[0].trim();
-      let match = firstLine.match(/<!--\s*(.+?)\s*-->/);
-      if (!match) match = firstLine.match(/\/\*\s*(.+?)\s*\*\//);
-      if (!match) match = firstLine.match(/#\s*(.+)/);
-      if (!match) match = firstLine.match(/\/\/\s*(.+)/);
-      
-      if (match && match[1] && match[1].includes('.')) {
-        filename = match[1].trim();
-      } else {
-        if (lang === 'html' && !files['index.html']) filename = 'index.html';
-        else if (lang === 'css' && !files['style.css']) filename = 'style.css';
-        else if ((lang === 'javascript' || lang === 'js') && !files['script.js']) filename = 'script.js';
-        else if (lang === 'python' && !files['app.py']) filename = 'app.py';
-      }
+    if (blocks.length > 1) {
+      for (let i = 1; i < blocks.length; i += 2) {
+        const block = blocks[i];
+        const lines = block.split('\n');
+        const langInfo = lines.shift().trim();
+        const lang = langInfo.split(' ')[0].toLowerCase();
+        if (lines.length === 0) continue;
+        
+        let content = lines.join('\n');
+        let filename = `file_${i}.${lang || 'txt'}`;
+        
+        const firstLine = lines[0].trim();
+        let match = firstLine.match(/<!--\s*([a-zA-Z0-9_\-\.]+)\s*-->/);
+        if (!match) match = firstLine.match(/\/\*\s*([a-zA-Z0-9_\-\.]+)\s*\*\//);
+        if (!match) match = firstLine.match(/#\s*([a-zA-Z0-9_\-\.]+)/);
+        if (!match) match = firstLine.match(/\/\/\s*([a-zA-Z0-9_\-\.]+)/);
+        
+        if (match && match[1] && match[1].includes('.')) {
+          filename = match[1].trim();
+        } else {
+          if (lang === 'html' && !files['index.html']) filename = 'index.html';
+          else if (lang === 'css' && !files['style.css']) filename = 'style.css';
+          else if ((lang === 'javascript' || lang === 'js') && !files['script.js']) filename = 'script.js';
+          else if (lang === 'python' && !files['app.py']) filename = 'app.py';
+          else if (lang === 'json' && !files['package.json']) filename = 'package.json';
+        }
 
-      if (filename === 'index.html' || (lang === 'html' && !htmlPreview)) {
-        htmlPreview = content;
+        if (filename.toLowerCase() === 'index.html' || (lang === 'html' && !htmlPreview)) {
+          htmlPreview = content;
+          filename = 'index.html';
+        }
+        files[filename] = content;
       }
-      files[filename] = content;
+    } else {
+      // No markdown blocks found at all
+      if (text.includes("<!DOCTYPE html>") || text.includes("<html")) {
+         htmlPreview = text;
+         files['index.html'] = text;
+      } else {
+         files['output.txt'] = text;
+      }
     }
     
     if (Object.keys(files).length === 0) {
-      return { preview: text, files: { 'index.html': text } };
+      return { preview: text, files: { 'output.txt': text } };
     }
-    return { preview: htmlPreview || "<html><body><h1>Backend code generated!</h1><p>Check the Code tab or download the ZIP.</p></body></html>", files };
+    
+    // Inject scripts/css into HTML preview if they are separate files and not already referenced inline?
+    // Doing true bundling here is complex, but we prioritize index.html
+    return { preview: htmlPreview || "<html><body><h1>Backend code generated, but no index.html was found!</h1><p>Check the Code tab to view the generated files.</p></body></html>", files };
   };
 
   const loadHistory = async () => {
@@ -318,9 +335,31 @@ export default function WebsitePage() {
                         </div>
                       </TabsContent>
                       <TabsContent value="code" className="m-0">
-                        <pre className="rounded-xl border border-white/5 bg-[#07080d] p-4 overflow-auto max-h-[640px] text-xs leading-relaxed">
-                          <code className="text-cyan-100" data-testid="website-code-block">{current.html}</code>
-                        </pre>
+                        <div className="flex h-[640px] rounded-xl border border-white/5 bg-[#07080d] overflow-hidden">
+                          <div className="w-1/3 min-w-[200px] border-r border-white/5 bg-black/40 overflow-y-auto p-2">
+                            <div className="text-xs text-slate-500 uppercase tracking-widest font-semibold px-3 py-2 mb-1">Project Files</div>
+                            {Object.entries(parseFiles(current.html).files).map(([filename, content]) => (
+                               <button
+                                 key={filename}
+                                 onClick={() => setSelectedFile(filename)}
+                                 className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+                                    (selectedFile || Object.keys(parseFiles(current.html).files)[0]) === filename
+                                      ? 'bg-grexo-cyan/10 text-grexo-cyan' 
+                                      : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                                 }`}
+                               >
+                                 {filename}
+                               </button>
+                            ))}
+                          </div>
+                          <div className="flex-1 overflow-auto p-4 w-2/3">
+                            <pre className="text-xs leading-relaxed">
+                              <code className="text-cyan-100" data-testid="website-code-block">
+                                {parseFiles(current.html).files[selectedFile || Object.keys(parseFiles(current.html).files)[0]] || current.html}
+                              </code>
+                            </pre>
+                          </div>
+                        </div>
                       </TabsContent>
                     </Tabs>
                   </div>
