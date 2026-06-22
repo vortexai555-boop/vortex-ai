@@ -1,4 +1,4 @@
-"""grexo ai - Premium AI SaaS Platform Backend."""
+"""GREXO AI - Premium AI SaaS Platform Backend."""
 
 import os
 import uuid
@@ -16,45 +16,17 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, EmailStr
-import base64
 from google import genai
 from google.genai import types
+import base64
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 import os
-ai_client = genai.Client()
-
-def convert_messages(messages):
-    contents = []
-    system_instruction = None
-    for m in messages:
-        if m["role"] == "system":
-            system_instruction = m["content"]
-            continue
-            
-        role = "user" if m["role"] == "user" else "model"
-        if isinstance(m["content"], str):
-            parts = [types.Part.from_text(text=m["content"])]
-        else:
-            parts = []
-            for item in m["content"]:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    parts.append(types.Part.from_text(text=item["text"]))
-                elif isinstance(item, dict) and item.get("type") == "image_url":
-                    url = item["image_url"]["url"]
-                    mime = url.split(";")[0].split(":")[1]
-                    b64_data = url.split(",")[1]
-                    parts.append(
-                        types.Part.from_bytes(
-                            data=base64.b64decode(b64_data),
-                            mime_type=mime
-                        )
-                    )
-        contents.append(types.Content(role=role, parts=parts))
-    return contents, system_instruction
-
+ai_client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY", "")
+)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -76,7 +48,7 @@ ENTERPRISE_CREDITS = 99999
 CHAT_MODEL = ("anthropic", "claude-sonnet-4-5-20250929")
 IMAGE_MODEL = "imagen-4.0-fast-generate-001"
 
-app = FastAPI(title="grexo ai")
+app = FastAPI(title="GREXO AI")
 api = APIRouter(prefix="/api")
 
 
@@ -238,22 +210,6 @@ def detect_image_mime(b64: str) -> str:
     return "image/png"
 
 
-async def generate_content_with_retry(model: str, contents: list, config: types.GenerateContentConfig, max_retries: int = 5) -> Any:
-    for attempt in range(max_retries):
-        try:
-            return await ai_client.aio.models.generate_content(
-                model=model,
-                contents=contents,
-                config=config
-            )
-        except Exception as e:
-            if "503" in str(e) and attempt < max_retries - 1:
-                delay = 2 ** attempt
-                logger.warning(f"503 UNAVAILABLE encountered, retrying in {delay} seconds (attempt {attempt + 1}/{max_retries})")
-                await asyncio.sleep(delay)
-            else:
-                raise
-
 async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None) -> str:
     messages = [
         {"role": "system", "content": f"{system}\nCurrent year is 2026. Current date is June 2026."},
@@ -264,56 +220,34 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
 
 async def generate_text_free(messages: list) -> str:
     try:
-        contents, system_instruction = convert_messages(messages)
-        config = types.GenerateContentConfig()
-        if system_instruction:
-            config.system_instruction = system_instruction
+        import httpx
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post("https://text.pollinations.ai/openai", json={
+                "messages": messages,
+                "model": "openai"
+            })
+            content = ""
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    if "choices" in data and len(data["choices"]) > 0:
+                        msg = data["choices"][0].get("message", {})
+                        content = msg.get("content", str(data))
+                    else:
+                        content = resp.text
+                except:
+                    content = resp.text
+            else:
+                content = resp.text
             
-        resp = await generate_content_with_retry(
-            model='gemini-2.5-flash',
-            contents=contents,
-            config=config
-        )
-        return resp.text
+            # Remove ad
+            content = content.split("Support Pollinations.AI:")[0]
+            content = content.split("🌸 Ad 🌸")[0]
+            content = content.replace("Powered by Pollinations.AI free text APIs.", "")
+            return content.strip()
     except Exception as e:
         logger.exception("Free text generation failed: %s", e)
         raise e
-
-async def pollinations_chat(prompt_or_messages, retries: int = 1) -> str:
-    import httpx
-    import asyncio
-    
-    if isinstance(prompt_or_messages, str):
-        payload_messages = [{"role": "user", "content": prompt_or_messages}]
-    else:
-        payload_messages = prompt_or_messages
-
-    for attempt in range(retries + 1):
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                json_payload = {
-                    "messages": payload_messages,
-                    "model": "openai"
-                }
-                resp = await client.post("https://text.pollinations.ai/", json=json_payload)
-                resp.raise_for_status()
-                reply = resp.text
-                if not reply:
-                    return "No response from model."
-                
-                # Remove ad
-                reply = reply.split("Support Pollinations.AI:")[0]
-                reply = reply.split("🌸 Ad 🌸")[0]
-                reply = reply.replace("Powered by Pollinations.AI free text APIs.", "")
-                
-                return reply.strip()
-        except Exception as e:
-            if attempt < retries:
-                logger.warning("Pollinations AI error: %s. Retrying...", e)
-                await asyncio.sleep(1)
-            else:
-                logger.error("Pollinations AI failed after %d retries: %s", retries, e)
-                return "Sorry, the AI service is temporarily unavailable."
 
 from duckduckgo_search import DDGS
 
@@ -323,27 +257,47 @@ async def web_search(query: str):
         import re
         import urllib.parse
         async with httpx.AsyncClient(timeout=10.0) as client:
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'}
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
             resp = await client.get(f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}", headers=headers)
             if resp.status_code == 200:
                 html = resp.text
                 snippets = re.findall(r'<a class=\"result__snippet[^>]*>(.*?)</a>', html, flags=re.IGNORECASE | re.DOTALL)
                 if snippets:
                     results = []
-                    for i, s in enumerate(snippets[:5]):
-                        # Strip HTML tags
+                    for i, s in enumerate(snippets[:3]):
                         clean_s = re.sub(r'<[^>]+>', '', s).strip()
-                        # Unescape basic HTML entities
                         clean_s = clean_s.replace('&#x27;', "'").replace('&amp;', '&').replace('&quot;', '"')
                         results.append({"title": f"Result {i+1}", "body": clean_s})
                     return results
-        
-        # Fallback to DDGS if that fails
+
+        # Fallback to Wikipedia API if all DuckDuckGo fails (very useful for people like elon musk)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            wiki_search = await client.get(f"https://en.wikipedia.org/w/api.php?action=opensearch&search={urllib.parse.quote(query)}&limit=1&namespace=0&format=json")
+            if wiki_search.status_code == 200:
+                data = wiki_search.json()
+                if len(data) > 1 and len(data[1]) > 0:
+                    title = data[1][0]
+                    wiki_page = await client.get(f"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exsentences=10&titles={urllib.parse.quote(title)}&explaintext=1&format=json")
+                    if wiki_page.status_code == 200:
+                        pages = wiki_page.json().get('query', {}).get('pages', {})
+                        for page_id in pages:
+                            extract = pages[page_id].get('extract', '')
+                            if extract:
+                                return [{"title": f"Wikipedia: {title}", "body": extract}]
+                                
         def _search():
-            from duckduckgo_search import DDGS
-            with DDGS() as ddgs:
-                return list(ddgs.text(query, max_results=5))
-        return await asyncio.to_thread(_search)
+            try:
+                from duckduckgo_search import DDGS
+                with DDGS() as ddgs:
+                    return list(ddgs.text(query, max_results=3))
+            except Exception:
+                return []
+                
+        search_res = await asyncio.to_thread(_search)
+        if search_res:
+            return search_res
+            
+        return []
     except Exception as e:
         logger.exception("search failed: %s", e)
         return []
@@ -493,11 +447,11 @@ async def logout(response: Response, authorization: Optional[str] = Header(None)
 
 
 SYSTEM_PROMPTS = {
-    "chat": "You are grexo ai Assistant — a brilliant, friendly, helpful AI. Be concise, clear, and impressive.",
-    "code": "You are grexo Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
-    "content": "You are grexo Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
-    "business": "You are grexo Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
-    "website": "You are grexo Web — an expert frontend engineer. When asked, output a SINGLE complete HTML file with inline CSS+JS in a ```html code block.",
+    "chat": "You are GREXO AI Assistant — a brilliant, friendly, helpful AI. Be concise, clear, and impressive.",
+    "code": "You are GREXO Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
+    "content": "You are GREXO Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
+    "business": "You are GREXO Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
+    "website": "You are GREXO Web — an expert frontend engineer. When asked, output a SINGLE complete HTML file with inline CSS+JS in a ```html code block.",
     "calculator": "Calculator"
 }
 
@@ -522,14 +476,6 @@ async def rename_conversation(cid: str, body: RenameIn, user=Depends(get_current
     return {"ok": True}
 
 import re
-
-@app.get("/test-search")
-async def test_search():
-    try:
-        results = await web_search("larry page net worth")
-        return {"status": "ok", "results": results}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
 
 @api.post("/chat/send")
 async def chat_send(
@@ -603,70 +549,59 @@ async def chat_send(
     history = conv.get("messages", [])[-20:]
 
     transcript = "\n".join(
-        [f"{m['role'].upper()}: {m['content']}" for m in history[:-1]]
+        [f"{m['role'].upper()}: {m.get('content', '')}" for m in history[:-1]]
     )
 
     current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Therefore, events from 2024, 2025, and 2026 are NOT in the future. You MUST use search tools to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
     
     try:
-        from typing import List
+        messages_openai = [
+            {"role": "system", "content": system + current_date_info}
+        ]
+        for m in history[:-1]:
+            messages_openai.append({
+                "role": "user" if m["role"] == "user" else "assistant",
+                "content": m.get("content", "")
+            })
+            
+        user_content_parts = []
+        
+        main_message = body.message
         if body.web_search:
-            search_text = "No results found."
             try:
-                search_results = await web_search(body.message)
-                if search_results:
-                    search_text = ""
-                    for i, res in enumerate(search_results[:5], 1):
-                        search_text += f"{res.get('title', '')}: {res.get('body', '')}\n"
-            except Exception as search_err:
-                logger.error(f"Search error: {search_err}")
-                search_text = "Search failed."
+                results = await web_search(body.message)
+                if results:
+                    search_context = "Recent relevant web search results:\n" + "\n".join([f"- {r.get('title')}: {r.get('body')}" for r in results])
+                    main_message = f"User Question:\n{body.message}\n\nExternal Search Results:\n{search_context}\n\n(Use these search results to answer if they are helpful, otherwise answer normally. Do not say you don't have information if the search results contain it.)"
+            except Exception as e:
+                logger.error("Web search failed: %s", e)
                 
-            pollinations_messages = [{"role": "system", "content": f"You are Grexo AI. If web search results are provided in the next messages, you MUST use them to answer the user's question. They contain real-time info. Do not rely on your outdated training data if search results provide the answer. Never hallucinate.\n{current_date_info}"}]
-            for m in history[:-1]:
-                pollinations_messages.append({
-                    "role": "user" if m["role"] == "user" else "assistant",
-                    "content": m.get("content", "")
+        user_content_parts.append({"type": "text", "text": main_message})
+
+        if body.files:
+            for file in body.files:
+                b64_data = file["data"]
+                if "," in b64_data:
+                    full_data_uri = b64_data
+                else:
+                    mime = file.get("mime", "application/octet-stream")
+                    full_data_uri = f"data:{mime};base64,{b64_data}"
+                user_content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": full_data_uri}
                 })
-            
-            final_user_text_parts = []
-            if body.message:
-                final_user_text_parts.append(f"Answer the following question using the provided external search results. If the results do not contain the answer, say you don't know based on the search.\n\nUser Question:\n{body.message}\n\nExternal Search Results:\n{search_text}")
-                
-            if body.files:
-                for file in body.files:
-                    final_user_text_parts.append("[User attached an image]")
-                    
-            pollinations_messages.append({
-                "role": "user",
-                "content": "\n".join(final_user_text_parts)
-            })
-            
-            reply = await pollinations_chat(pollinations_messages)
-        else:
-            pollinations_messages = [{"role": "system", "content": "You are Grexo AI. Answer naturally. Current year is 2026. Current date is June 2026."}]
-            for m in history[:-1]:
-                pollinations_messages.append({
-                    "role": "user" if m["role"] == "user" else "assistant",
-                    "content": m["content"]
-                })
-            
-            final_user_text_parts = []
-            if body.message:
-                final_user_text_parts.append(body.message)
-            if body.files:
-                for file in body.files:
-                    final_user_text_parts.append("[User attached an image]")
-            pollinations_messages.append({
-                "role": "user",
-                "content": "\n".join(final_user_text_parts)
-            })
-            
-            reply = await pollinations_chat(pollinations_messages)
+        
+        messages_openai.append({"role": "user", "content": user_content_parts})
+
+        reply = await generate_text_free(messages_openai)
+
+        if not reply:
+            reply = "No response from model."
 
     except Exception as e:
         logger.exception("Text generation error: %s", e)
-        reply = "Sorry, the AI service is temporarily unavailable."
+        error_str = str(e)
+        reply = f"Error: {error_str}"
 
     assistant_msg = {
         "role": "assistant",
@@ -721,44 +656,31 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
         user_prompt += f"Input:\n{body.input_text}\n"
 
     try:
+        user_content_parts = []
+        user_content_parts.append({
+            "type": "text", 
+            "text": user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
+        })
+
         if body.file_data:
-            # Use OpenAI compatible format
-            mime_type = body.file_mime or "image/png"
+            mime_type = body.file_mime or "application/pdf"
             b64_data = body.file_data
             if "," in b64_data:
-                b64_data = b64_data.split(",", 1)[1]
+                full_data_uri = b64_data
+            else:
+                full_data_uri = f"data:{mime_type};base64,{b64_data}"
             
-            user_content = []
-            text_prompt = user_prompt or ("Extract text from this file." if body.tool_id == "ocr" else "Please process this document.")
-            if text_prompt:
-                user_content.append({"type": "text", "text": text_prompt})
-            
-            user_content.append({
+            user_content_parts.append({
                 "type": "image_url",
-                "image_url": {"url": f"data:{mime_type};base64,{b64_data}"}
+                "image_url": {"url": full_data_uri}
             })
-            
-            messages = [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": user_content}
-            ]
-            
-            contents, sys_inst = convert_messages(messages)
-            config = types.GenerateContentConfig()
-            if sys_inst:
-                config.system_instruction = sys_inst
-                
-            resp = await generate_content_with_retry(
-                model='gemini-2.5-flash',
-                contents=contents,
-                config=config
-            )
-            reply = resp.text
-        else:
-            messages = [{"role": "system", "content": system_instruction}]
-            prompt_with_files = user_prompt or "Please provide input."
-            messages.append({"role": "user", "content": prompt_with_files})
-            reply = await generate_text_free(messages)
+
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_content_parts}
+        ]
+        
+        reply = await generate_text_free(messages)
         
         if not reply:
             reply = ""
@@ -958,45 +880,35 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
     prompt = (
-        f"You are a master Web Developer. Build a luxurious, fully functional, cutting-edge {site_type} website.\n"
-        f"User Requirements: {description}\n"
-        f"CRITICAL RULES:\n"
-        f"1. You MUST return EXACTLY ONE single, self-contained HTML file starting with <!DOCTYPE html>. The preview environment ONLY supports rendering 1 HTML file.\n"
-        f"2. DO NOT output multi-file projects, NO package.json, NO React templates, NO Node.js or Express. STRICTLY frontend.\n"
-        f"3. Include advanced embedded CSS (or Tailwind via CDN) and complex inline JavaScript to make it highly interactive and 'aggressive' in its functional output.\n"
-        f"4. The code should reflect all languages (HTML, advanced CSS styling, JS logic) merged into this ONE file.\n"
-        f"5. Enclose the ENTIRE file ONLY inside a single ```html code block.\n"
-        f"6. DO NOT output any conversational text, explanations, or 'Check the code tab' warnings. Just the HTML."
+        f"Build a beautiful, modern, fully responsive {site_type} website as a SINGLE self-contained HTML file. "
+        f"Requirements: {description}. Use inline CSS and JS. Include header, hero, features, CTA, footer. "
+        f"Return ONLY the HTML inside a ```html fenced block."
     )
     try:
         if files_data:
-            user_content = [{"type": "text", "text": prompt}]
+            user_content_parts = []
+            user_content_parts.append({"type": "text", "text": prompt})
+            
             for file in files_data:
                 b64_data = file["data"]
                 if "," in b64_data:
-                    b64_data = b64_data.split(",", 1)[1]
-                mime = file.get("mime", "image/png")
-                user_content.append({
+                    full_data_uri = b64_data
+                else:
+                    mime = file.get("mime", "application/octet-stream")
+                    full_data_uri = f"data:{mime};base64,{b64_data}"
+                user_content_parts.append({
                     "type": "image_url",
-                    "image_url": {"url": f"data:{mime};base64,{b64_data}"}
+                    "image_url": {"url": full_data_uri}
                 })
             
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPTS["website"]},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": user_content_parts}
             ]
             
-            contents, sys_inst = convert_messages(messages)
-            config = types.GenerateContentConfig()
-            if sys_inst:
-                config.system_instruction = sys_inst
-                
-            resp = await generate_content_with_retry(
-                model='gemini-2.5-flash',
-                contents=contents,
-                config=config
-            )
-            out = resp.text
+            out = await generate_text_free(messages)
+            if not out:
+                out = ""
         else:
             out = await llm_complete(SYSTEM_PROMPTS["website"], prompt)
         
@@ -1004,20 +916,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         if "```html" in out:
             html = out.split("```html", 1)[1].split("```", 1)[0].strip()
         elif "```" in out:
-            import re
-            parts = out.split("```")
-            for p in parts[1::2]:
-                if "<html" in p or "<!DOCTYPE" in p:
-                    html = p.strip()
-                    if html.startswith("html\n"): html = html[5:]
-                    break
-            else:
-                html = parts[1].strip()
-                if html.startswith("html\n"): html = html[5:]
-        
-        if not html.lstrip().startswith("<"):
-            # Ensure it looks like HTML
-            html = "<!DOCTYPE html>\n<html><body>\n" + html + "\n</body></html>"
+            html = out.split("```", 1)[1].split("```", 1)[0].strip()
         site_id = new_id("site")
         rec = {
             "id": site_id, "user_id": user_id, "description": description,
@@ -1466,7 +1365,7 @@ async def admin_audit(_admin=Depends(require_admin)):
 
 
 @api.get("/")
-async def root(): return {"app": "grexo ai", "ok": True}
+async def root(): return {"app": "GREXO AI", "ok": True}
 
 
 @app.on_event("startup")
