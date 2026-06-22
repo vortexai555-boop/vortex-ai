@@ -218,7 +218,7 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
     return await generate_text_free(messages)
 
 
-async def generate_text_free(messages: list) -> str:
+async def generate_text_free(messages: list, prefer_pollinations: bool = False) -> str:
     # Try using Gemini first to support multimodal parts
     import os
     gemini_key = os.getenv("GEMINI_API_KEY", "")
@@ -235,35 +235,42 @@ async def generate_text_free(messages: list) -> str:
             detail="GEMINI_API_KEY is missing. The fallback AI (Pollinations) does not support image analysis. Please configure your Gemini API Key in the backend .env file to enable vision."
         )
 
-    if gemini_key:
+    if gemini_key and (has_images or not prefer_pollinations):
         try:
             gemini_messages = []
             system_instruction = ""
             for m in messages:
                 if m["role"] == "system":
-                    system_instruction += m["content"] + "\n"
+                    content_val = m["content"]
+                    if isinstance(content_val, list):
+                        content_val = " ".join([c["text"] for c in content_val if c.get("type") == "text"])
+                    system_instruction += content_val + "\n"
                     continue
                 
                 role = "user" if m["role"] == "user" else "model"
                 parts = []
                 
                 if isinstance(m["content"], str):
-                    parts.append(m["content"])
+                    parts.append({"text": m["content"]})
                 elif isinstance(m["content"], list):
                     for c in m["content"]:
                         if c.get("type") == "text":
-                            parts.append(c["text"])
+                            parts.append({"text": c["text"]})
                         elif c.get("type") == "image_url":
                             url = c["image_url"]["url"]
                             if url.startswith("data:"):
                                 mime, b64 = url.split(";", 1)
                                 mime = mime.replace("data:", "")
                                 b64 = b64.replace("base64,", "")
-                                import base64
                                 # Fix missing padding if any
                                 b64 += "=" * ((4 - len(b64) % 4) % 4)
-                                parts.append(types.Part.from_bytes(data=base64.b64decode(b64), mime_type=mime))
-                gemini_messages.append(types.Content(role=role, parts=parts))
+                                parts.append({
+                                    "inline_data": {
+                                        "mime_type": mime,
+                                        "data": b64
+                                    }
+                                })
+                gemini_messages.append({"role": role, "parts": parts})
             
             geminiConfig = {}
             if system_instruction:
@@ -281,10 +288,19 @@ async def generate_text_free(messages: list) -> str:
                 raise HTTPException(status_code=500, detail=f"Gemini AI failed to process image: {ex}")
 
     try:
+        # Format messages strictly for Pollinations (strings only)
+        pollinations_messages = []
+        for m in messages:
+            content_val = m["content"]
+            if isinstance(content_val, list):
+                # We extract text portions for Pollinations text API
+                content_val = "\n".join([c["text"] for c in content_val if c.get("type") == "text"])
+            pollinations_messages.append({"role": m["role"], "content": content_val})
+
         import httpx
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post("https://text.pollinations.ai/openai", json={
-                "messages": messages,
+                "messages": pollinations_messages,
                 "model": "openai"
             })
             content = ""
@@ -622,7 +638,7 @@ async def chat_send(
         
         messages_openai.append({"role": "user", "content": user_content_parts})
 
-        reply = await generate_text_free(messages_openai)
+        reply = await generate_text_free(messages_openai, prefer_pollinations=True)
 
         if not reply:
             reply = "No response from model."
