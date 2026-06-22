@@ -909,50 +909,45 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
     prompt = (
-        f"Build a beautiful, modern, fully responsive {site_type} system based on the following requirements: {description}. "
-        f"You must return the ENTIRE codebase as a SINGLE valid JSON object. DO NOT wrap the JSON in Markdown formatting like ```json or add any other text before or after the JSON. "
-        f"The JSON object MUST follow this exact schema:\n"
-        f"{{\n"
-        f"  \"projectType\": \"string (e.g., 'react', 'html', 'next', 'vue')\",\n"
-        f"  \"framework\": \"string (e.g., 'vite', 'vanilla', 'nextjs')\",\n"
-        f"  \"files\": {{\n"
-        f"    \"public/index.html\": \"file content as string\",\n"
-        f"    \"src/App.js\": \"file content as string...\",\n"
-        f"    \"src/index.js\": \"file content as string...\"\n"
-        f"  }}\n"
-        f"}}\n"
-        f"Do NOT return any other format. Always include an index.html if possible for entry point. If generating a React app, generate a standard Vite-compatiable React structure with package.json."
+        f"Build a beautiful, modern, fully responsive {site_type} website as a SINGLE self-contained HTML file. "
+        f"Requirements: {description}. Use inline CSS and JS. Include header, hero, features, CTA, footer. "
+        f"Return ONLY the HTML inside a ```html fenced block."
     )
     try:
         if files_data:
-            user_content_parts = []
-            user_content_parts.append({"type": "text", "text": prompt})
-            
+            import base64
+            user_parts = [types.Part.from_text(text=prompt)]
             for file in files_data:
                 b64_data = file["data"]
                 if "," in b64_data:
-                    full_data_uri = b64_data
-                else:
-                    mime = file.get("mime", "application/octet-stream")
-                    full_data_uri = f"data:{mime};base64,{b64_data}"
-                user_content_parts.append({
-                    "type": "image_url",
-                    "image_url": {"url": full_data_uri}
-                })
+                    b64_data = b64_data.split(",", 1)[1]
+                user_parts.append(
+                    types.Part(
+                        inline_data=types.Blob(
+                            data=base64.b64decode(b64_data),
+                            mime_type=file.get("mime", "application/pdf")
+                        )
+                    )
+                )
             
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPTS["website"]},
-                {"role": "user", "content": user_content_parts}
-            ]
+            contents = [types.Content(role="user", parts=user_parts)]
             
-            out = await generate_text_free(messages)
-            if not out:
-                out = ""
+            resp = await ai_client.aio.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPTS["website"]
+                )
+            )
+            out = resp.text
         else:
             out = await llm_complete(SYSTEM_PROMPTS["website"], prompt)
         
-        # Keep the raw markdown containing all files
         html = out
+        if "```html" in out:
+            html = out.split("```html", 1)[1].split("```", 1)[0].strip()
+        elif "```" in out:
+            html = out.split("```", 1)[1].split("```", 1)[0].strip()
         site_id = new_id("site")
         rec = {
             "id": site_id, "user_id": user_id, "description": description,
