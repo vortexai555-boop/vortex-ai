@@ -41,8 +41,9 @@ export default function WebsitePage() {
   const iframeRef = useRef(null);
 
   const handleFileChange = (e) => {
-    if (e.target.files) {
-      setAttachments((prev) => [...prev, ...Array.from(e.target.files)]);
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setAttachments((prev) => [...prev, ...newFiles]);
     }
     e.target.value = null; // reset
   };
