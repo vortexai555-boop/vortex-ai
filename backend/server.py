@@ -514,7 +514,7 @@ async def chat_send(
         [f"{m['role'].upper()}: {m.get('content', '')}" for m in history[:-1]]
     )
 
-    current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Use the provided search results to answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data."
+    current_date_info = "\n\nIMPORTANT: The current year and month is June 2026. Answer questions realistically about current events, net worths, and timelines up to June 2026 without claiming you don't have future data. Do NOT attempt to use tools, web search, or output tool calls—just provide the final answer directly in text."
     
     try:
         messages_openai = [
@@ -534,7 +534,7 @@ async def chat_send(
                 results = await web_search(body.message)
                 if results:
                     search_context = "Recent relevant web search results:\n" + "\n".join([f"- {r.get('title')}: {r.get('body')}" for r in results])
-                    main_message = f"{body.message}\n\n{search_context}\n\nPlease use the above search results to inform your answer if they are relevant."
+                    main_message = f"{body.message}\n\n{search_context}\n\nPlease use the above search results to inform your answer if they are relevant. I have ALREADY performed the web search for you, so DO NOT output any reasoning or text saying 'let me search' or 'I will use a search tool'. Just answer the user's question directly using the provided info."
             except Exception as e:
                 logger.error("Web search failed: %s", e)
                 
