@@ -109,11 +109,21 @@ export default function WebsitePage() {
       for (const [fname, fcontent] of Object.entries(files)) {
         if (fname.endsWith('.css')) {
           if (!htmlPreview.includes(fcontent.substring(0, 20))) {
-            htmlPreview = htmlPreview.replace('</head>', `\n<style>\n/* ${fname} */\n${fcontent}\n</style>\n</head>`);
+            const styleBlock = `\n<style>\n/* ${fname} */\n${fcontent}\n</style>\n`;
+            if (htmlPreview.includes('</head>')) {
+              htmlPreview = htmlPreview.replace('</head>', `${styleBlock}</head>`);
+            } else {
+              htmlPreview += styleBlock;
+            }
           }
         } else if (fname.endsWith('.js') && !['vite.config.js', 'tailwind.config.js', 'postcss.config.js', 'server.js', 'app.js'].includes(fname.toLowerCase())) {
           if (!htmlPreview.includes(fcontent.substring(0, 20))) {
-            htmlPreview = htmlPreview.replace('</body>', `\n<script>\n// ${fname}\n${fcontent}\n</script>\n</body>`);
+            const scriptBlock = `\n<script>\n// ${fname}\n${fcontent}\n</script>\n`;
+            if (htmlPreview.includes('</body>')) {
+              htmlPreview = htmlPreview.replace('</body>', `${scriptBlock}</body>`);
+            } else {
+              htmlPreview += scriptBlock;
+            }
           }
         }
       }
