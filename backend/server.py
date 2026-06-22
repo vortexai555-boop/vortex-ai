@@ -892,12 +892,12 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
     prompt = (
-        f"Build a powerful, full-stack {site_type} system. "
+        f"Build a beautiful, modern, fully responsive {site_type} system. "
         f"Requirements: {description}. "
-        f"Do NOT restrict yourself to a single HTML file. You must generate a complete professional codebase "
-        f"using HTML, CSS, JavaScript, and optionally Python, Java, or Node.js for backend components if appropriate. "
-        f"Return the codebase as a series of Markdown code blocks. Each block MUST start with the file name as a comment on the first line (e.g. `<!-- index.html -->`, `/* style.css */`, `# app.py`, `// Main.java`), followed by the code."
-        f"Always provide at least `index.html` as the main entry point."
+        f"You must build a complete realistic codebase. DO NOT restrict yourself to just HTML/CSS. "
+        f"Use HTML, SCSS/Sass or CSS, JavaScript, Python, Java, or whatever backend/frontend languages are best suited for a real production SaaS environment. "
+        f"Return the codebase as a series of Markdown code blocks. Each block MUST start with the file name as a comment on the VERY FIRST line of the code content (e.g. `<!-- index.html -->`, `/* style.css */`, `# app.py`, `// Main.java`). "
+        f"Include a full realistic architecture."
     )
     try:
         if files_data:
