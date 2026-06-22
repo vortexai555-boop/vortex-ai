@@ -581,17 +581,29 @@ async def chat_send(
 
         messages.append({"role": "user", "content": user_content})
 
-        contents, system_instruction = convert_messages(messages)
-        config = types.GenerateContentConfig()
-        if system_instruction:
-            config.system_instruction = system_instruction
+        # Convert multimodal messages to text-only for Pollinations
+        pollinations_messages = []
+        for m in messages[:-1]:
+            pollinations_messages.append(m)
 
-        resp = await generate_content_with_retry(
-            model='gemini-2.5-flash',
-            contents=contents,
-            config=config
-        )
-        reply = resp.text
+        final_user_text_parts = []
+        for item in user_content:
+            if item.get("type") == "text":
+                final_user_text_parts.append(item["text"])
+            elif item.get("type") == "image_url":
+                final_user_text_parts.append("[User attached an image]")
+        
+        pollinations_messages.append({"role": "user", "content": "\n".join(final_user_text_parts)})
+
+        import httpx
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            search_param = "?search=true" if body.web_search else ""
+            resp = await client.post(
+                f"https://text.pollinations.ai/{search_param}",
+                json={"messages": pollinations_messages}
+            )
+            resp.raise_for_status()
+            reply = resp.text
 
         if not reply:
             reply = "No response from model."
