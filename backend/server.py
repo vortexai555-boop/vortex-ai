@@ -319,10 +319,30 @@ from duckduckgo_search import DDGS
 
 async def web_search(query: str):
     try:
+        import httpx
+        import re
+        import urllib.parse
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'}
+            resp = await client.get(f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}", headers=headers)
+            if resp.status_code == 200:
+                html = resp.text
+                snippets = re.findall(r'<a class=\"result__snippet[^>]*>(.*?)</a>', html, flags=re.IGNORECASE | re.DOTALL)
+                if snippets:
+                    results = []
+                    for i, s in enumerate(snippets[:5]):
+                        # Strip HTML tags
+                        clean_s = re.sub(r'<[^>]+>', '', s).strip()
+                        # Unescape basic HTML entities
+                        clean_s = clean_s.replace('&#x27;', "'").replace('&amp;', '&').replace('&quot;', '"')
+                        results.append({"title": f"Result {i+1}", "body": clean_s})
+                    return results
+        
+        # Fallback to DDGS if that fails
         def _search():
             from duckduckgo_search import DDGS
             with DDGS() as ddgs:
-                return list(ddgs.text(query, backend="lite", max_results=5))
+                return list(ddgs.text(query, max_results=5))
         return await asyncio.to_thread(_search)
     except Exception as e:
         logger.exception("search failed: %s", e)
@@ -503,6 +523,14 @@ async def rename_conversation(cid: str, body: RenameIn, user=Depends(get_current
 
 import re
 
+@app.get("/test-search")
+async def test_search():
+    try:
+        results = await web_search("larry page net worth")
+        return {"status": "ok", "results": results}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 @api.post("/chat/send")
 async def chat_send(
     body: ChatMessageIn,
@@ -594,7 +622,7 @@ async def chat_send(
                 logger.error(f"Search error: {search_err}")
                 search_text = "Search failed."
                 
-            pollinations_messages = [{"role": "system", "content": f"You are Grexo AI. Answer naturally. If search results are useful, use them. If they are unrelated, ignore them. Never hallucinate. Always answer clearly.\n{current_date_info}"}]
+            pollinations_messages = [{"role": "system", "content": f"You are Grexo AI. If web search results are provided in the next messages, you MUST use them to answer the user's question. They contain real-time info. Do not rely on your outdated training data if search results provide the answer. Never hallucinate.\n{current_date_info}"}]
             for m in history[:-1]:
                 pollinations_messages.append({
                     "role": "user" if m["role"] == "user" else "assistant",
@@ -603,7 +631,7 @@ async def chat_send(
             
             final_user_text_parts = []
             if body.message:
-                final_user_text_parts.append(f"User Question:\n{body.message}\n\nSearch Results:\n{search_text}")
+                final_user_text_parts.append(f"Answer the following question using the provided external search results. If the results do not contain the answer, say you don't know based on the search.\n\nUser Question:\n{body.message}\n\nExternal Search Results:\n{search_text}")
                 
             if body.files:
                 for file in body.files:
