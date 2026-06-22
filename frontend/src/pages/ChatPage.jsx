@@ -347,19 +347,23 @@ useEffect(() => {
               </div>
             )}
             <div className="glass-strong rounded-2xl p-2 flex items-end gap-2">
-              <label 
-                htmlFor="file-upload-chat" 
+              <button 
+                type="button" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById('file-upload-chat').click();
+                }}
                 className="h-11 px-3 mt-auto flex items-center justify-center text-slate-500 hover:text-slate-300 cursor-pointer transition-colors" 
                 title="Upload file or image"
               >
                 <PlusCircle size={24} weight="regular" className="pointer-events-none" />
-              </label>
+              </button>
               <input 
                 id="file-upload-chat" 
                 type="file" 
                 multiple 
                 accept="image/*,application/pdf" 
-                className="hidden" 
+                style={{ display: "none" }} 
                 onChange={handleFileChange} 
               />
               <Textarea
