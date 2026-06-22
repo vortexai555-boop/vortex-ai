@@ -219,6 +219,50 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
 
 
 async def generate_text_free(messages: list) -> str:
+    # Try using Gemini first to support multimodal parts
+    import os
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    if gemini_key:
+        try:
+            gemini_messages = []
+            system_instruction = ""
+            for m in messages:
+                if m["role"] == "system":
+                    system_instruction += m["content"] + "\n"
+                    continue
+                
+                role = "user" if m["role"] == "user" else "model"
+                parts = []
+                
+                if isinstance(m["content"], str):
+                    parts.append(m["content"])
+                elif isinstance(m["content"], list):
+                    for c in m["content"]:
+                        if c.get("type") == "text":
+                            parts.append(c["text"])
+                        elif c.get("type") == "image_url":
+                            url = c["image_url"]["url"]
+                            if url.startswith("data:"):
+                                mime, b64 = url.split(";", 1)
+                                mime = mime.replace("data:", "")
+                                b64 = b64.replace("base64,", "")
+                                import base64
+                                parts.append(types.Part.from_bytes(data=base64.b64decode(b64), mime_type=mime))
+                gemini_messages.append({"role": role, "parts": parts})
+            
+            geminiConfig = {}
+            if system_instruction:
+                geminiConfig["system_instruction"] = system_instruction
+            
+            resp = await ai_client.aio.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=gemini_messages,
+                config=geminiConfig
+            )
+            return resp.text.strip()
+        except Exception as ex:
+            logger.error(f"Gemini generation failed: {ex}, falling back to pollinations.")
+
     try:
         import httpx
         async with httpx.AsyncClient(timeout=60.0) as client:
