@@ -268,9 +268,9 @@ async def generate_text_free(messages: list, prefer_pollinations: bool = False) 
                                 parts.append(types.Part.from_bytes(data=base64.b64decode(b64), mime_type=mime))
                 gemini_messages.append(types.Content(role=role, parts=parts))
             
-            geminiConfig = {}
+            geminiConfig = types.GenerateContentConfig()
             if system_instruction:
-                geminiConfig["system_instruction"] = system_instruction
+                geminiConfig.system_instruction = system_instruction
             
             resp = await ai_client.aio.models.generate_content(
                 model='gemini-2.5-flash',
@@ -569,6 +569,7 @@ async def chat_send(
     user_msg = {
         "role": "user",
         "content": body.message,
+        "files": body.files,
         "ts": now_utc().isoformat()
     }
 
@@ -921,11 +922,11 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
     prompt = (
-        f"Build a beautiful, modern, fully responsive {site_type} system. "
+        f"Build a breathtakingly beautiful, modern, and fully responsive {site_type} system. "
         f"Requirements: {description}. "
-        f"CRITICAL: To ensure the website can be previewed instantly in the browser, you MUST provide a complete, visually stunning `index.html` file that includes all necessary HTML, CSS (e.g. via Tailwind CDN), and client-side JavaScript. This `index.html` must render the full UI correctly without requiring a local web server. "
+        f"CRITICAL: You MUST provide a complete, visually stunning `index.html` file that includes all necessary HTML, CSS (e.g., via Tailwind CDN), and client-side JavaScript. This `index.html` must render the full UI correctly and look like a premium, top-tier product. Use modern design principles, beautiful typography, gradients, animations, and high-quality layouts. Do not hold back on styling and aesthetics. "
         f"In addition to the frontend, you must build the rest of a complete realistic codebase for a production environment. Provide backend code, database schemas, or whatever backend/frontend languages are needed (e.g. Node.js, Python, Java). "
-        f"Return the codebase as a series of Markdown code blocks. Each block MUST start with the file name as a comment on the VERY FIRST line of the code content (e.g. `<!-- index.html -->`, `/* style.css */`, `# app.py`, `// server.js`). "
+        f"Return the codebase as a series of Markdown code blocks. Each block MUST start with the file name as a comment on the VERY FIRST line of the code content (e.g. `<!-- index.html -->` or `/* style.css */` or `// server.js`). "
         f"Ensure `index.html` is the primary visual file."
     )
     try:
