@@ -101,7 +101,11 @@ export default function WebsitePage() {
     }
     
     if (Object.keys(files).length === 0) {
-      return { preview: text, files: { 'output.txt': text } };
+      const escapedText = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return { 
+        preview: `<html><body style="font-family: sans-serif; padding: 2rem; background: #111; color: #ccc; white-space: pre-wrap; word-wrap: break-word;">${escapedText}</body></html>`, 
+        files: { 'output.txt': text } 
+      };
     }
     
     // Inject scripts/css into HTML preview if they are separate files
@@ -125,6 +129,16 @@ export default function WebsitePage() {
               htmlPreview += scriptBlock;
             }
           }
+        }
+      }
+      
+      // Auto-inject Tailwind if missing but classes seem to be used
+      if (!htmlPreview.includes('tailwindcss') && !htmlPreview.includes('tailwind.min.css') && htmlPreview.includes('class=')) {
+        const tailwindCdn = `<script src="https://cdn.tailwindcss.com"></script>\n</head>`;
+        if (htmlPreview.includes('</head>')) {
+          htmlPreview = htmlPreview.replace('</head>', tailwindCdn);
+        } else {
+          htmlPreview = `<script src="https://cdn.tailwindcss.com"></script>\n` + htmlPreview;
         }
       }
     }
