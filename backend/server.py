@@ -268,9 +268,10 @@ async def generate_text_free(messages: list, prefer_pollinations: bool = False) 
                                 parts.append(types.Part.from_bytes(data=base64.b64decode(b64), mime_type=mime))
                 gemini_messages.append(types.Content(role=role, parts=parts))
             
-            geminiConfig = types.GenerateContentConfig()
+            config_args = {}
             if system_instruction:
-                geminiConfig.system_instruction = system_instruction
+                config_args["system_instruction"] = system_instruction
+            geminiConfig = types.GenerateContentConfig(**config_args) if config_args else None
             
             resp = await ai_client.aio.models.generate_content(
                 model='gemini-2.5-flash',
