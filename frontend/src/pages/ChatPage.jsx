@@ -375,7 +375,14 @@ useEffect(() => {
                 <PaperPlaneRight size={16} weight="fill" />
               </Button>
             </div>
-            <div className="mt-2 text-[11px] text-slate-500 text-center">Grexo can make mistakes. Verify important info.</div>
+            <div className="mt-2 flex flex-col items-center gap-1">
+              {!webSearch && (
+                <div className="text-[12px] text-amber-500/80 bg-amber-500/10 px-3 py-1 rounded-full flex items-center gap-1">
+                  <Globe size={12} /> For accurate / real-time answers, please toggle on Web Search.
+                </div>
+              )}
+              <div className="text-[11px] text-slate-500 text-center">Grexo can make mistakes. Verify important info.</div>
+            </div>
           </div>
         </form>
       </section>
