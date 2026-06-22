@@ -892,9 +892,12 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
     prompt = (
-        f"Build a beautiful, modern, fully responsive {site_type} website as a SINGLE self-contained HTML file. "
-        f"Requirements: {description}. Use inline CSS and JS. Include header, hero, features, CTA, footer. "
-        f"Return ONLY the HTML inside a ```html fenced block."
+        f"Build a powerful, full-stack {site_type} system. "
+        f"Requirements: {description}. "
+        f"Do NOT restrict yourself to a single HTML file. You must generate a complete professional codebase "
+        f"using HTML, CSS, JavaScript, and optionally Python, Java, or Node.js for backend components if appropriate. "
+        f"Return the codebase as a series of Markdown code blocks. Each block MUST start with the file name as a comment on the first line (e.g. `<!-- index.html -->`, `/* style.css */`, `# app.py`, `// Main.java`), followed by the code."
+        f"Always provide at least `index.html` as the main entry point."
     )
     try:
         if files_data:
@@ -924,11 +927,8 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         else:
             out = await llm_complete(SYSTEM_PROMPTS["website"], prompt)
         
+        # Keep the raw markdown containing all files
         html = out
-        if "```html" in out:
-            html = out.split("```html", 1)[1].split("```", 1)[0].strip()
-        elif "```" in out:
-            html = out.split("```", 1)[1].split("```", 1)[0].strip()
         site_id = new_id("site")
         rec = {
             "id": site_id, "user_id": user_id, "description": description,
