@@ -909,12 +909,19 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
     prompt = (
-        f"Build a beautiful, modern, fully responsive {site_type} system. "
-        f"Requirements: {description}. "
-        f"You must build a complete realistic codebase. DO NOT restrict yourself to just HTML/CSS. "
-        f"Use HTML, SCSS/Sass or CSS, JavaScript, Python, Java, or whatever backend/frontend languages are best suited for a real production SaaS environment. "
-        f"Return the codebase as a series of Markdown code blocks. Each block MUST start with the file name as a comment on the VERY FIRST line of the code content (e.g. `<!-- index.html -->`, `/* style.css */`, `# app.py`, `// Main.java`). "
-        f"Include a full realistic architecture."
+        f"Build a beautiful, modern, fully responsive {site_type} system based on the following requirements: {description}. "
+        f"You must return the ENTIRE codebase as a SINGLE valid JSON object. DO NOT wrap the JSON in Markdown formatting like ```json or add any other text before or after the JSON. "
+        f"The JSON object MUST follow this exact schema:\n"
+        f"{{\n"
+        f"  \"projectType\": \"string (e.g., 'react', 'html', 'next', 'vue')\",\n"
+        f"  \"framework\": \"string (e.g., 'vite', 'vanilla', 'nextjs')\",\n"
+        f"  \"files\": {{\n"
+        f"    \"public/index.html\": \"file content as string\",\n"
+        f"    \"src/App.js\": \"file content as string...\",\n"
+        f"    \"src/index.js\": \"file content as string...\"\n"
+        f"  }}\n"
+        f"}}\n"
+        f"Do NOT return any other format. Always include an index.html if possible for entry point. If generating a React app, generate a standard Vite-compatiable React structure with package.json."
     )
     try:
         if files_data:
