@@ -270,7 +270,7 @@ async def generate_text_free(messages: list) -> str:
                 geminiConfig["system_instruction"] = system_instruction
             
             resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-3.5-flash',
                 contents=gemini_messages,
                 config=geminiConfig
             )
@@ -282,7 +282,7 @@ async def generate_text_free(messages: list) -> str:
 
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post("https://text.pollinations.ai/openai", json={
                 "messages": messages,
                 "model": "openai"
@@ -914,34 +914,23 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         f"Return ONLY the HTML inside a ```html fenced block."
     )
     try:
+        user_content_parts = [{"type": "text", "text": prompt}]
         if files_data:
-            import base64
-            user_parts = [types.Part.from_text(text=prompt)]
             for file in files_data:
+                mime = file.get("mime", "application/pdf")
                 b64_data = file["data"]
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
-                user_parts.append(
-                    types.Part(
-                        inline_data=types.Blob(
-                            data=base64.b64decode(b64_data),
-                            mime_type=file.get("mime", "application/pdf")
-                        )
-                    )
-                )
-            
-            contents = [types.Content(role="user", parts=user_parts)]
-            
-            resp = await ai_client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPTS["website"]
-                )
-            )
-            out = resp.text
-        else:
-            out = await llm_complete(SYSTEM_PROMPTS["website"], prompt)
+                user_content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64_data}"}
+                })
+
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPTS["website"]},
+            {"role": "user", "content": user_content_parts}
+        ]
+        out = await generate_text_free(messages)
         
         html = out
         if "```html" in out:
