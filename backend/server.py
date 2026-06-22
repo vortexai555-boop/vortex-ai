@@ -234,7 +234,11 @@ async def generate_text_free(messages: list) -> str:
                         msg = data["choices"][0].get("message", {})
                         content = msg.get("content")
                         if not content:
-                            content = msg.get("reasoning", str(data))
+                            reasoning = msg.get("reasoning", "")
+                            if reasoning:
+                                content = "I cannot determine the exact answer without internet access. Please turn on 'Web Search' for this query."
+                            else:
+                                content = "I couldn't generate a proper response."
                     else:
                         content = resp.text
                 except:
@@ -537,7 +541,9 @@ async def chat_send(
                     main_message = f"{body.message}\n\n{search_context}\n\nPlease use the above search results to inform your answer if they are relevant. I have ALREADY performed the web search for you, so DO NOT output any reasoning or text saying 'let me search' or 'I will use a search tool'. Just answer the user's question directly using the provided info."
             except Exception as e:
                 logger.error("Web search failed: %s", e)
-                
+        else:
+            main_message = f"{body.message}\n\nCRITICAL INSTRUCTION: You DO NOT have access to any external tools, search engines, or live data. You MUST answer directly based on your internal knowledge. DO NOT output internal reasoning like 'Let me search' or 'I need to use a tool'. Give your best possible answer directly."
+
         user_content_parts.append({"type": "text", "text": main_message})
 
         if body.files:
