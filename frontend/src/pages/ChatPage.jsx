@@ -100,31 +100,10 @@ useEffect(() => {
     const filesBase64 = await Promise.all(
       attachments.map((file) => {
         return new Promise((resolve, reject) => {
-          if (!file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve({ mime: file.type, data: reader.result.split(',')[1] });
-            reader.onerror = (error) => reject(error);
-            return;
-          }
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let w = img.width;
-            let h = img.height;
-            const MAX_DIM = 1200;
-            if (w > MAX_DIM || h > MAX_DIM) {
-              if (w > h) { h = Math.round((h * MAX_DIM) / w); w = MAX_DIM; }
-              else { w = Math.round((w * MAX_DIM) / h); h = MAX_DIM; }
-            }
-            canvas.width = w; canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            resolve({ mime: 'image/jpeg', data: dataUrl.split(',')[1] });
-          };
-          img.onerror = (error) => reject(error);
-          img.src = URL.createObjectURL(file);
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve({ mime: file.type, data: reader.result.split(',')[1] });
+          reader.onerror = (error) => reject(error);
         });
       })
     );
