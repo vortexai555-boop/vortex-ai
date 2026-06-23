@@ -487,7 +487,7 @@ SYSTEM_PROMPTS = {
     "code": "You are GREXO Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
     "content": "You are GREXO Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
     "business": "You are GREXO Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
-    "website": 'You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output the exact code files inside <file name="...">...</file> XML blocks. Include index.html, styles.css, and script.js.',
+    "website": 'You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output the exact code files inside <file name="...">...</file> XML blocks. ONLY output the XML blocks. Include index.html, styles.css, and script.js. Do NOT wrap the XML blocks in markdown code blocks.',
     "calculator": "Calculator"
 }
 
@@ -946,16 +946,19 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         xml_matches = re.finditer(r'<file\s+name="([^"]+)">\s*(.*?)\s*</file>', out, re.DOTALL)
         for m in xml_matches:
             name = m.group(1).lower()
+            content = m.group(2).strip()
+            if content.startswith("```"):
+                content = re.sub(r'^```[a-zA-Z]*\n(.*?)\n```$', r'\1', content, flags=re.DOTALL)
             if "html" in name:
-                parsed_files["html"] = m.group(2)
+                parsed_files["html"] = content
             elif "css" in name:
-                parsed_files["css"] = m.group(2)
+                parsed_files["css"] = content
             elif "js" in name or "script" in name:
-                parsed_files["js"] = m.group(2)
+                parsed_files["js"] = content
             
         if not parsed_files:
             # Fallback to try and extract fenced code blocks if no XML tags found
-            code_blocks = re.finditer(r'```[a-zA-Z]*\n(.*?)```', out, re.DOTALL)
+            code_blocks = re.finditer(r'```[a-zA-Z]*\s*\n(.*?)```', out, re.DOTALL)
             blocks = list(code_blocks)
             if len(blocks) >= 3:
                 parsed_files["html"] = blocks[0].group(1).strip()
