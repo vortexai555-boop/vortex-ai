@@ -478,7 +478,7 @@ SYSTEM_PROMPTS = {
     "code": "You are GREXO Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
     "content": "You are GREXO Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
     "business": "You are GREXO Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
-    "website": "You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output exactly a JSON object containing the code files.",
+    "website": 'You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output the exact code files inside <file name="...">...</file> XML blocks. Include index.html, styles.css, and script.js.',
     "calculator": "Calculator"
 }
 
@@ -911,8 +911,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
     prompt = (
         f"Build a beautiful, modern, fully responsive {site_type} website. "
         f"Requirements: {description}. Use Tailwind via CDN in the HTML. Include responsive layouts. "
-        f"You MUST return ONLY a valid JSON object. No formatting, no markdown ticks, no preamble. "
-        f"The JSON must have this exact structure: {{\n\"files\": {{\n  \"index.html\": \"<code>\",\n  \"styles.css\": \"<code>\",\n  \"script.js\": \"<code>\"\n}}\n}}"
+        f"You MUST return the code for 'index.html', 'styles.css', and 'script.js' by wrapping each inside an XML-like block: <file name=\"filename\">...</file>. Do not use JSON."
     )
     try:
         user_content_parts = [{"type": "text", "text": prompt}]
@@ -934,34 +933,15 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         out = await generate_text_free(messages)
         
         import re
-        import json
-        
-        # Try to extract JSON if it was wrapped in markdown
-        json_str = out.strip()
-        match = re.search(r'```(?:json)?\s*(.*?)\s*```', json_str, re.DOTALL)
-        if match:
-            json_str = match.group(1).strip()
-        else:
-            # Try to grab just the outermost JSON object
-            start = json_str.find('{')
-            end = json_str.rfind('}')
-            if start != -1 and end != -1:
-                json_str = json_str[start:end+1]
-                
         files = {}
-        try:
-            if json_str:
-                parsed = json.loads(json_str)
-                if isinstance(parsed, dict):
-                    files = parsed.get("files", {})
-        except json.JSONDecodeError as e:
-            logger.error("JSON decode failed. Falling back to regex. String was: %s", json_str[:500])
+        xml_matches = re.finditer(r'<file\s+name="([^"]+)">\s*(.*?)\s*</file>', out, re.DOTALL)
+        for m in xml_matches:
+            files[m.group(1)] = m.group(2)
             
-        if not files or not isinstance(files, dict):
-            # Fallback to try and extract fenced code blocks if JSON was completely invalid
+        if not files:
+            # Fallback to try and extract fenced code blocks if no XML tags found
             code_blocks = re.finditer(r'```(?:html|css|javascript|js)?\s*\n(.*?)\n```', out, re.DOTALL)
             blocks = list(code_blocks)
-            files = {}
             if len(blocks) >= 3:
                 files["index.html"] = blocks[0].group(1)
                 files["styles.css"] = blocks[1].group(1)
