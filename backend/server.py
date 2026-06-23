@@ -478,7 +478,7 @@ SYSTEM_PROMPTS = {
     "code": "You are GREXO Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
     "content": "You are GREXO Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
     "business": "You are GREXO Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
-    "website": "You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output exactly a JSON object inside a ```json block with schema: {\"files\": {\"index.html\": \"...\", \"styles.css\": \"...\", \"script.js\": \"...\"}}",
+    "website": 'You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Render the code by wrapping each file in an XML block: <file name="index.html">...</file>. Include index.html, styles.css, and script.js.',
     "calculator": "Calculator"
 }
 
@@ -911,7 +911,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
     prompt = (
         f"Build a beautiful, modern, fully responsive {site_type} website. "
         f"Requirements: {description}. Use Tailwind via CDN in the HTML. Include responsive layouts. "
-        f"Return ONLY valid JSON containing 'files' -> 'index.html', 'styles.css', 'script.js' inside a ```json fenced block."
+        f"Return the code for 'index.html', 'styles.css', and 'script.js' by wrapping each inside an XML-like block: <file name=\"filename\">...</file>. Do not use JSON."
     )
     try:
         user_content_parts = [{"type": "text", "text": prompt}]
@@ -932,23 +932,25 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         ]
         out = await generate_text_free(messages)
         
-        json_str = out.strip()
-        if "```json" in out:
-            json_str = out.split("```json", 1)[1].split("```", 1)[0].strip()
-        elif "```" in out:
-            json_str = out.split("```", 1)[1].split("```", 1)[0].strip()
-        else:
-            start = json_str.find('{')
-            end = json_str.rfind('}')
-            if start != -1 and end != -1:
-                json_str = json_str[start:end+1]
+        import re
+        files = {}
+        xml_matches = re.finditer(r'<file\s+name="([^"]+)">\s*(.*?)\s*</file>', out, re.DOTALL)
+        for m in xml_matches:
+            files[m.group(1)] = m.group(2)
             
-        import json
-        try:
-            files = json.loads(json_str).get("files", {})
-        except json.JSONDecodeError as e:
-            logger.error("JSON decode failed. String was: %s", json_str[:500])
-            raise ValueError("The generation model did not return a valid JSON format.") from e
+        if not files:
+            # Fallback to try and extract fenced code blocks if no XML tags found
+            code_blocks = re.finditer(r'```(?:html|css|javascript|js)?\s*\n(.*?)\n```', out, re.DOTALL)
+            blocks = list(code_blocks)
+            if len(blocks) >= 3:
+                files["index.html"] = blocks[0].group(1)
+                files["styles.css"] = blocks[1].group(1)
+                files["script.js"] = blocks[2].group(1)
+            elif len(blocks) > 0:
+                files["index.html"] = blocks[0].group(1)
+                
+        if not files:
+            raise ValueError("The generation model did not return a valid format.")
         
         site_id = new_id("site")
         rec = {
@@ -965,7 +967,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         logger.exception("website job failed: %s", e)
         error_msg = str(e)
         if "JSONDecodeError" in str(type(e)):
-             error_msg = "The generation model did not return a valid JSON format."
+             error_msg = "The generation model did not return a valid format."
         await db.website_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "error", "error": error_msg[:300], "completed_at": now_utc().isoformat()}},
