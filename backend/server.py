@@ -270,7 +270,7 @@ async def generate_text_free(messages: list) -> str:
                 geminiConfig["system_instruction"] = system_instruction
             
             resp = await ai_client.aio.models.generate_content(
-                model='gemini-3.5-flash',
+                model='gemini-2.5-flash',
                 contents=gemini_messages,
                 config=geminiConfig
             )
@@ -282,9 +282,18 @@ async def generate_text_free(messages: list) -> str:
 
     try:
         import httpx
+        
+        # Pollinations does not support list content, convert to text
+        pollinations_messages = []
+        for m in messages:
+            content = m["content"]
+            if isinstance(content, list):
+                content = "\n".join([c["text"] for c in content if c.get("type") == "text"])
+            pollinations_messages.append({"role": m["role"], "content": content})
+            
         async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post("https://text.pollinations.ai/openai", json={
-                "messages": messages,
+                "messages": pollinations_messages,
                 "model": "openai"
             })
             content = ""
@@ -933,26 +942,51 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         out = await generate_text_free(messages)
         
         import re
-        files = {}
+        parsed_files = {}
         xml_matches = re.finditer(r'<file\s+name="([^"]+)">\s*(.*?)\s*</file>', out, re.DOTALL)
         for m in xml_matches:
-            files[m.group(1)] = m.group(2)
+            name = m.group(1).lower()
+            if "html" in name:
+                parsed_files["html"] = m.group(2)
+            elif "css" in name:
+                parsed_files["css"] = m.group(2)
+            elif "js" in name or "script" in name:
+                parsed_files["js"] = m.group(2)
             
-        if not files:
+        if not parsed_files:
             # Fallback to try and extract fenced code blocks if no XML tags found
-            code_blocks = re.finditer(r'```(?:html|css|javascript|js)?\s*\n(.*?)\n```', out, re.DOTALL)
+            code_blocks = re.finditer(r'```[a-zA-Z]*\n(.*?)```', out, re.DOTALL)
             blocks = list(code_blocks)
             if len(blocks) >= 3:
-                files["index.html"] = blocks[0].group(1)
-                files["styles.css"] = blocks[1].group(1)
-                files["script.js"] = blocks[2].group(1)
+                parsed_files["html"] = blocks[0].group(1).strip()
+                parsed_files["css"] = blocks[1].group(1).strip()
+                parsed_files["js"] = blocks[2].group(1).strip()
             elif len(blocks) > 0:
-                files["index.html"] = blocks[0].group(1)
-                files["styles.css"] = "* { margin: 0; padding: 0; box-sizing: border-box; }"
-                files["script.js"] = "console.log('App loaded.');"
+                html_code = blocks[0].group(1).strip()
+                parsed_files["html"] = html_code
                 
-        if not files:
+                # Check for inline styles and scripts
+                import re as regex
+                style_match = regex.search(r'<style>(.*?)</style>', html_code, regex.DOTALL)
+                script_match = regex.search(r'<script>(.*?)</script>', html_code, regex.DOTALL)
+                
+                parsed_files["css"] = style_match.group(1).strip() if style_match else "* { margin: 0; padding: 0; box-sizing: border-box; }"
+                parsed_files["js"] = script_match.group(1).strip() if script_match else "console.log('App loaded.');"
+                
+                if style_match or script_match:
+                     # Clean the html if it had embedded script/style to avoid duplicate rendering issues
+                     cleaned = regex.sub(r'<style>.*?</style>', '', html_code, flags=regex.DOTALL)
+                     cleaned = regex.sub(r'<script>.*?</script>', '', cleaned, flags=regex.DOTALL)
+                     parsed_files["html"] = cleaned
+                
+        if not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
+            
+        files = {
+            "html": parsed_files.get("html", "<h1>Generation Error</h1>"),
+            "css": parsed_files.get("css", "body { background: white; color: black; }"),
+            "js": parsed_files.get("js", "console.log('App loaded.');")
+        }
         
         site_id = new_id("site")
         rec = {
