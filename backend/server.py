@@ -478,7 +478,7 @@ SYSTEM_PROMPTS = {
     "code": "You are GREXO Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
     "content": "You are GREXO Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
     "business": "You are GREXO Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
-    "website": "You are GREXO Web — an expert frontend engineer. When asked, output a SINGLE complete HTML file with inline CSS+JS in a ```html code block.",
+    "website": "You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output exactly a JSON object inside a ```json block with schema: {\"files\": {\"index.html\": \"...\", \"styles.css\": \"...\", \"script.js\": \"...\"}}",
     "calculator": "Calculator"
 }
 
@@ -909,9 +909,9 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
     prompt = (
-        f"Build a beautiful, modern, fully responsive {site_type} website as a SINGLE self-contained HTML file. "
-        f"Requirements: {description}. Use inline CSS and JS. Include header, hero, features, CTA, footer. "
-        f"Return ONLY the HTML inside a ```html fenced block."
+        f"Build a beautiful, modern, fully responsive {site_type} website. "
+        f"Requirements: {description}. Use Tailwind via CDN in the HTML. Include responsive layouts. "
+        f"Return ONLY valid JSON containing 'files' -> 'index.html', 'styles.css', 'script.js' inside a ```json fenced block."
     )
     try:
         user_content_parts = [{"type": "text", "text": prompt}]
@@ -932,20 +932,24 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         ]
         out = await generate_text_free(messages)
         
-        html = out
-        if "```html" in out:
-            html = out.split("```html", 1)[1].split("```", 1)[0].strip()
+        json_str = out
+        if "```json" in out:
+            json_str = out.split("```json", 1)[1].split("```", 1)[0].strip()
         elif "```" in out:
-            html = out.split("```", 1)[1].split("```", 1)[0].strip()
+            json_str = out.split("```", 1)[1].split("```", 1)[0].strip()
+            
+        import json
+        files = json.loads(json_str).get("files", {})
+        
         site_id = new_id("site")
         rec = {
             "id": site_id, "user_id": user_id, "description": description,
-            "site_type": site_type, "html": html, "created_at": now_utc().isoformat(),
+            "site_type": site_type, "files": files, "created_at": now_utc().isoformat(),
         }
         await db.websites.insert_one(rec.copy())
         await db.website_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "done", "site_id": site_id, "html": html, "completed_at": now_utc().isoformat()}},
+            {"$set": {"status": "done", "site_id": site_id, "files": files, "completed_at": now_utc().isoformat()}},
         )
         await log_activity(user_id, "website", description[:120])
     except Exception as e:
