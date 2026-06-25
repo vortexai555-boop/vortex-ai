@@ -5,24 +5,20 @@ import GrexoLogo from "@/components/GrexoLogo";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import Marquee from "react-fast-marquee";
-import { ChatCircleDots, Sparkle, ShieldCheck, Lightning, Globe, Code, MagicWand, FileText, List, X } from "@phosphor-icons/react";
+import { List, X, Sparkles, ArrowRight } from "lucide-react";
+
+// Import landing components
+import ProductShowcase from "@/components/landing/ProductShowcase";
+import WorkflowAnimation from "@/components/landing/WorkflowAnimation";
+import FeatureGrid from "@/components/landing/FeatureGrid";
+import ComparisonTable from "@/components/landing/ComparisonTable";
+import Statistics from "@/components/landing/Statistics";
 
 const HERO_BG = "https://images.pexels.com/photos/12707786/pexels-photo-12707786.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
 const AVATARS = [
   "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=entropy&cs=srgb&fm=jpg&w=200",
   "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&w=200",
   "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?crop=entropy&cs=srgb&fm=jpg&w=200",
-];
-
-const features = [
-  { icon: ChatCircleDots, title: "AI Chat Assistant", text: "ChatGPT-style interface powered by Claude Sonnet 4.5. Save, rename and revisit any conversation." },
-  { icon: Lightning, title: "Lightning fast", text: "Stream responses with sub-second time-to-first-token. No waiting, just creating." },
-  { icon: ShieldCheck, title: "Private by default", text: "Per-user isolation. Your conversations belong only to you. JWT + Google OAuth." },
-  { icon: Sparkle, title: "Premium models", text: "Built on the latest Claude reasoning models for accurate, nuanced, helpful answers." },
-  { icon: Globe, title: "Anywhere, any device", text: "Mobile-first, glass dashboard. Continue your work from desktop, tablet or phone." },
-  { icon: Code, title: "Developer ready", text: "Modular architecture designed to plug in more AI models and tools as you grow." },
-  { icon: MagicWand, title: "AI Image Generator", text: "Generate high quality images from text prompts with different styling options immediately." },
-  { icon: FileText, title: "Productivity Hub", text: "10 added features: Document Writer, Resume Builder, Cover Letter, Email Writer, Grammar Checker, Text Summarizer, Translator, Meeting Notes, PDF QA, OCR Extract." }
 ];
 
 const testimonials = [
@@ -36,25 +32,31 @@ export default function Landing() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-grexo-bg text-white relative overflow-x-hidden" id="top">
-      <div className="grexo-grain absolute inset-0 opacity-30 pointer-events-none" />
+    <div className="min-h-screen bg-[#020617] text-white relative overflow-x-hidden selection:bg-cyan-500/30 font-sans" id="top">
+      {/* Background elements */}
+      <div className="absolute top-0 inset-x-0 h-screen bg-gradient-to-b from-cyan-900/20 via-[#020617] to-[#020617] pointer-events-none -z-10" />
+      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none -z-10" />
+      <div className="absolute top-1/4 left-0 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[100px] pointer-events-none -z-10" />
 
       {/* NAV */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-grexo-bg/80 backdrop-blur-md border-b border-white/5">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-[#020617]/70 backdrop-blur-xl border-b border-white/5 transition-all">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <GrexoLogo />
           
-          <nav className="hidden md:flex items-center gap-8 text-sm text-slate-300">
-            <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); window.history.pushState(null, '', '/'); }} className="hover:text-white transition" data-testid="nav-home">Home</a>
-            <a href="#features" className="hover:text-white transition" data-testid="nav-features">Features</a>
-            <a href="#pricing" className="hover:text-white transition" data-testid="nav-pricing">Pricing</a>
-            <a href="#testimonials" className="hover:text-white transition" data-testid="nav-testimonials">Reviews</a>
-            <a href="#faq" className="hover:text-white transition" data-testid="nav-faq">FAQ</a>
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+            <a href="#" className="text-white">Product</a>
+            <a href="#showcase" className="hover:text-white transition">Showcase</a>
+            <a href="#compare" className="hover:text-white transition">Compare</a>
+            <a href="#pricing" className="hover:text-white transition">Pricing</a>
           </nav>
           
-          <div className="hidden md:flex items-center gap-3">
-            <Link to="/login"><Button variant="ghost" className="text-slate-200 hover:bg-white/5" data-testid="nav-login">Sign in</Button></Link>
-            <Link to="/signup"><Button className="btn-primary-grexo" data-testid="nav-signup">Start Free</Button></Link>
+          <div className="hidden md:flex items-center gap-4">
+            <Link to="/login" className="text-sm font-medium text-slate-300 hover:text-white transition">Sign in</Link>
+            <Link to="/signup">
+              <button className="bg-white text-black px-5 py-2.5 rounded-full text-sm font-medium hover:bg-slate-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                Start Free
+              </button>
+            </Link>
           </div>
 
           <button 
@@ -72,21 +74,19 @@ export default function Landing() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden border-t border-white/10 bg-grexo-bg/95 backdrop-blur-lg overflow-hidden"
+              className="md:hidden border-t border-white/10 bg-[#020617]/95 backdrop-blur-lg overflow-hidden"
             >
               <nav className="flex flex-col px-6 py-6 gap-6 text-base text-slate-300">
-                <a href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); window.history.pushState(null, '', '/'); setIsMobileMenuOpen(false); }} className="hover:text-white transition">Home</a>
-                <a href="#features" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-white transition">Features</a>
-                <a href="#pricing" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-white transition">Pricing</a>
-                <a href="#testimonials" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-white transition">Reviews</a>
-                <a href="#faq" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-white transition">FAQ</a>
+                <a href="#showcase" onClick={() => setIsMobileMenuOpen(false)}>Showcase</a>
+                <a href="#compare" onClick={() => setIsMobileMenuOpen(false)}>Compare</a>
+                <a href="#pricing" onClick={() => setIsMobileMenuOpen(false)}>Pricing</a>
                 
                 <div className="flex flex-col gap-3 mt-4 pt-6 border-t border-white/10">
                   <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                    <Button variant="ghost" className="w-full justify-center text-slate-200 hover:bg-white/5">Sign in</Button>
+                    <Button variant="ghost" className="w-full justify-center">Sign in</Button>
                   </Link>
                   <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)}>
-                    <Button className="w-full justify-center btn-primary-grexo">Start Free</Button>
+                    <Button className="w-full justify-center bg-white text-black hover:bg-slate-200">Start Free</Button>
                   </Link>
                 </div>
               </nav>
@@ -96,229 +96,221 @@ export default function Landing() {
       </header>
 
       {/* HERO */}
-      <section className="relative min-h-screen flex items-center justify-center pt-24">
-        <div className="absolute inset-0">
-          <img src={HERO_BG} alt="" className="w-full h-full object-cover opacity-25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-grexo-bg via-grexo-bg/60 to-grexo-bg" />
-          <div className="aurora" />
-        </div>
-        <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="text-mono-accent mb-6" data-testid="hero-tagline">The Future of Creation</div>
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl tracking-tighter font-light leading-[1.05]">
-              Create Anything with
-              <span className="block text-gradient-cyan font-medium mt-2">GREXO AI</span>
-            </h1>
-            <p className="mt-8 text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
-              A premium AI assistant with the elegance of a flagship product. Ask, learn, build — with Claude Sonnet 4.5 under the hood.
-            </p>
+      <section className="relative pt-40 pb-20 px-6 text-center">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="max-w-5xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-sm font-medium mb-8">
+            <Sparkles size={16} />
+            <span>Grexo AI 2.0 is now live</span>
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl lg:text-8xl tracking-tighter font-light leading-tight mb-6">
+            Create Anything with<br/>
+            <span className="font-medium text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">GREXO AI</span>
+          </h1>
+          
+          <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
+            One AI platform to chat, create images, build websites, write documents, code, and automate your workflow.
+          </p>
 
-            {/* Simulated Chat Input Box */}
-            <div className="mt-10 max-w-2xl mx-auto bg-black/40 backdrop-blur-md rounded-2xl p-2 pl-5 flex items-center gap-3 border border-white/10 shadow-[0_0_30px_-10px_rgba(0,240,255,0.2)] transition-all focus-within:border-[#00F0FF]/50 focus-within:shadow-[0_0_50px_-10px_rgba(0,240,255,0.3)]">
-              <Sparkle size={24} className="text-[#00F0FF] shrink-0" weight="duotone" />
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+            <Link to="/signup">
+              <button className="h-12 px-8 rounded-full bg-white text-black font-medium hover:bg-slate-200 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center gap-2">
+                Start Free <ArrowRight size={18} />
+              </button>
+            </Link>
+            <button className="h-12 px-8 rounded-full bg-white/5 text-white font-medium hover:bg-white/10 transition-all border border-white/10 flex items-center gap-2">
+              Watch Demo
+            </button>
+          </div>
+
+          {/* Prompt Input Box */}
+          <div className="max-w-2xl mx-auto relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
+            <div className="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-2 pl-6 flex items-center gap-4 shadow-2xl">
+              <Sparkles className="text-cyan-400 shrink-0" />
               <input 
                 type="text" 
                 placeholder="Ask GREXO anything..." 
-                className="flex-1 bg-transparent border-none text-white text-base outline-none focus:ring-0 placeholder:text-slate-500 w-full"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    window.location.href = '/signup';
-                  }
-                }}
+                className="bg-transparent text-white w-full outline-none placeholder:text-slate-500 h-12"
               />
-              <Link to="/signup">
-                <Button size="lg" className="btn-primary-grexo h-12 px-6 text-base rounded-xl">
-                  Send Message
-                </Button>
-              </Link>
+              <button className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
+                Generate
+              </button>
             </div>
-
-            {/* Quick Action Suggestions */}
-            <div className="mt-6 flex items-center justify-center gap-3 flex-wrap max-w-4xl mx-auto">
-              {[
-                "AI Chat Assistant", 
-                "Website Builder", 
-                "Image Generator",
-                "Document Writer", 
-                "Resume Builder", 
-                "Cover Letter", 
-                "Email Writer", 
-                "Grammar Checker", 
-                "Text Summarizer", 
-                "Translator", 
-                "Meeting Notes", 
-                "PDF QA", 
-                "OCR Extract"
-              ].map((suggestion) => (
-                <Link key={suggestion} to="/signup" className="text-xs text-slate-400 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full px-4 py-2 transition-colors cursor-pointer">
-                  {suggestion}
-                </Link>
-              ))}
-            </div>
-
-            <div className="mt-10 text-mono-accent text-[10px]">Trusted by builders worldwide</div>
-            <div className="mt-3 flex items-center justify-center gap-6 text-slate-500 text-sm">
-              <span>★★★★★ 4.9/5</span>
-              <span className="hidden sm:inline">·</span>
-              <span>10k+ creators</span>
-              <span className="hidden sm:inline">·</span>
-              <span>SOC-friendly</span>
-            </div>
-          </motion.div>
-        </div>
+          </div>
+        </motion.div>
       </section>
 
-      {/* FEATURES */}
-      <section id="features" className="relative py-32 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-16 max-w-2xl">
-            <div className="text-mono-accent mb-3">02 / Capabilities</div>
-            <h2 className="text-4xl sm:text-5xl tracking-tight font-light">Everything you need, nothing you don&apos;t.</h2>
-            <p className="mt-4 text-slate-400">A focused chat experience built around real conversations, fast streaming and persistent history — all wrapped in a beautiful dark interface.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {features.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                className="glass rounded-2xl p-8 hover:border-white/20 hover:-translate-y-1 transition-all"
-                data-testid={`feature-${i}`}
-              >
-                <f.icon size={28} weight="duotone" color="#00F0FF" />
-                <h3 className="mt-5 text-xl font-medium">{f.title}</h3>
-                <p className="mt-2 text-slate-400 text-sm leading-relaxed">{f.text}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
+      {/* SHOWCASE MACBOOK SECTION */}
+      <section id="showcase" className="py-24 relative z-10">
+        <ProductShowcase />
       </section>
 
-      {/* PRICING */}
-      <section id="pricing" className="relative py-32 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-16 text-center">
-            <div className="text-mono-accent mb-3">03 / Pricing</div>
-            <h2 className="text-4xl sm:text-5xl tracking-tight font-light">Simple plans. Honest pricing.</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <Statistics />
+
+      <WorkflowAnimation />
+
+      <FeatureGrid />
+
+      {/* INFINITE CAROUSEL */}
+      <section className="py-24 overflow-hidden relative">
+        <div className="text-center mb-16 px-6">
+          <h2 className="text-3xl md:text-5xl font-light text-white mb-4">A tool for every <span className="font-medium text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">task.</span></h2>
+        </div>
+        <div className="relative w-full flex items-center">
+          <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-[#020617] to-transparent z-10" />
+          <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-[#020617] to-transparent z-10" />
+          
+          <Marquee speed={40} gradient={false} pauseOnHover>
             {[
-              { name: "Free", price: "0 rs", desc: "Try Grexo with daily credits.", features: ["100 credits / month", "Chat with Claude Sonnet 4.5", "Save chat history"], cta: "Start Free", highlight: false },
-              { name: "Pro", price: "299 rs", desc: "For creators who ship daily.", features: ["2,000 credits / month", "Priority response speed", "Export conversations"], cta: "Upgrade to Pro", highlight: true },
-              { name: "Enterprise", price: "499 rs", desc: "Teams and power users.", features: ["Unlimited credits", "Premium support", "Team features (soon)"], cta: "Contact Sales", highlight: false },
-            ].map((p) => (
-              <div
-                key={p.name}
-                className={`rounded-2xl p-8 transition-all hover:-translate-y-1 ${p.highlight ? "glass-strong border-[#00F0FF]/40 glow-cyan-strong" : "glass"}`}
-                data-testid={`pricing-${p.name.toLowerCase()}`}
-              >
-                <div className="flex items-baseline justify-between">
-                  <h3 className="text-xl font-medium">{p.name}</h3>
-                  {p.highlight && <span className="text-mono-accent">Most popular</span>}
+              "https://images.unsplash.com/photo-1618477388954-7852f32655ec?w=800&q=80",
+              "https://images.unsplash.com/photo-1614729939124-032f0b56c9ce?w=800&q=80",
+              "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
+              "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80"
+            ].map((src, i) => (
+              <div key={i} className="mx-4 relative group perspective-1000">
+                <div className="w-[600px] h-[360px] rounded-2xl overflow-hidden border border-white/10 transform-gpu group-hover:rotate-y-[-5deg] group-hover:rotate-x-[5deg] transition-all duration-500 shadow-2xl">
+                  <img src={src} className="w-full h-full object-cover" alt="" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-8">
+                    <span className="text-white font-medium text-lg">Live Preview</span>
+                  </div>
                 </div>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-light">{p.price}</span>
-                  <span className="text-slate-500 text-sm">/mo</span>
-                </div>
-                <p className="mt-2 text-slate-400 text-sm">{p.desc}</p>
-                <ul className="mt-6 space-y-3 text-sm text-slate-300">
-                  {p.features.map((x) => <li key={x} className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#00F0FF]"/>{x}</li>)}
-                </ul>
-                <Link to="/signup">
-                  <Button className={`mt-8 w-full ${p.highlight ? "btn-primary-grexo" : "btn-ghost-grexo"}`} data-testid={`pricing-cta-${p.name.toLowerCase()}`}>{p.cta}</Button>
-                </Link>
               </div>
             ))}
-          </div>
+          </Marquee>
         </div>
+      </section>
+
+      <section id="compare">
+        <ComparisonTable />
       </section>
 
       {/* TESTIMONIALS */}
-      <section id="testimonials" className="relative py-32">
-        <div className="max-w-7xl mx-auto px-6 mb-12">
-          <div className="text-mono-accent mb-3">04 / Reviews</div>
-          <h2 className="text-4xl sm:text-5xl tracking-tight font-light">Loved by makers.</h2>
+      <section className="py-24 max-w-7xl mx-auto px-6">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-5xl font-light text-white">Loved by <span className="font-medium text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">visionaries.</span></h2>
         </div>
-        <Marquee gradient gradientColor="#030305" gradientWidth={120} speed={36} pauseOnHover>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {testimonials.map((t, i) => (
-            <div key={i} className="glass rounded-2xl p-6 mx-3 w-[340px]">
-              <p className="text-slate-200 text-sm leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
-              <div className="mt-5 flex items-center gap-3">
-                <img src={t.avatar} alt={t.name} className="w-9 h-9 rounded-full object-cover" />
+            <div key={i} className="bg-[#0a0a0f] border border-white/10 rounded-2xl p-8 hover:border-cyan-500/30 transition-colors group relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl group-hover:bg-cyan-500/20 transition-colors" />
+              <div className="flex gap-1 mb-6 text-cyan-400 text-sm">★★★★★</div>
+              <p className="text-slate-300 mb-8 text-sm leading-relaxed relative z-10">&ldquo;{t.quote}&rdquo;</p>
+              <div className="flex items-center gap-4">
+                <img src={t.avatar} alt={t.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
                 <div>
-                  <div className="text-sm font-medium">{t.name}</div>
+                  <div className="text-sm font-medium text-white">{t.name}</div>
                   <div className="text-xs text-slate-500">{t.role}</div>
                 </div>
               </div>
             </div>
           ))}
-        </Marquee>
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section id="pricing" className="py-24 max-w-5xl mx-auto px-6">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-5xl font-light text-white mb-4">Simple pricing.</h2>
+          <p className="text-slate-400">Scale your creation without limits.</p>
+        </div>
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          {/* Free */}
+          <div className="bg-[#0a0a0f] border border-white/10 rounded-3xl p-8 lg:p-12">
+            <h3 className="text-xl font-medium text-white mb-2">Starter</h3>
+            <div className="flex items-baseline gap-2 mb-4">
+              <span className="text-5xl font-light text-white">$0</span>
+              <span className="text-slate-500">/mo</span>
+            </div>
+            <p className="text-slate-400 mb-8 text-sm">Perfect for individuals starting with AI.</p>
+            <button className="w-full py-3 rounded-full bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-colors mb-8">
+              Start Free
+            </button>
+            <ul className="space-y-4 text-sm text-slate-300">
+              <li className="flex gap-3"><Sparkles size={18} className="text-cyan-500 shrink-0" /> 100 Credits / month</li>
+              <li className="flex gap-3"><Sparkles size={18} className="text-cyan-500 shrink-0" /> AI Chat Assistant</li>
+              <li className="flex gap-3"><Sparkles size={18} className="text-cyan-500 shrink-0" /> Basic Image Gen</li>
+            </ul>
+          </div>
+          {/* Pro */}
+          <div className="bg-gradient-to-b from-[#0a0a0f] to-[#020617] border border-cyan-500/30 rounded-3xl p-8 lg:p-12 relative shadow-[0_0_50px_rgba(0,229,255,0.1)]">
+            <div className="absolute top-0 inset-x-0 flex justify-center -translate-y-1/2">
+              <span className="bg-cyan-500 text-[#020617] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Most Popular</span>
+            </div>
+            <h3 className="text-xl font-medium text-white mb-2">Pro</h3>
+            <div className="flex items-baseline gap-2 mb-4">
+              <span className="text-5xl font-light text-white">$20</span>
+              <span className="text-slate-500">/mo</span>
+            </div>
+            <p className="text-slate-400 mb-8 text-sm">For professionals who ship daily.</p>
+            <button className="w-full py-3 rounded-full bg-white text-black font-medium hover:bg-slate-200 transition-colors mb-8 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+              Upgrade to Pro
+            </button>
+            <ul className="space-y-4 text-sm text-slate-300">
+              <li className="flex gap-3"><Sparkles size={18} className="text-cyan-500 shrink-0" /> Unlimited Chat</li>
+              <li className="flex gap-3"><Sparkles size={18} className="text-cyan-500 shrink-0" /> Full Website Builder Access</li>
+              <li className="flex gap-3"><Sparkles size={18} className="text-cyan-500 shrink-0" /> Advanced Image Gen</li>
+              <li className="flex gap-3"><Sparkles size={18} className="text-cyan-500 shrink-0" /> Fast priority routing</li>
+            </ul>
+          </div>
+        </div>
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="relative py-32 px-6">
-        <div className="max-w-3xl mx-auto">
-          <div className="mb-12 text-center">
-            <div className="text-mono-accent mb-3">05 / FAQ</div>
-            <h2 className="text-4xl sm:text-5xl tracking-tight font-light">Common questions</h2>
-          </div>
-          <Accordion type="single" collapsible className="space-y-3">
-            {[
-              { q: "Is my chat history private?", a: "Yes. Conversations are stored per user and isolated. We never share your data." },
-              { q: "Can I sign in with Google?", a: "Yes, Grexo supports both Google OAuth and email/password authentication." },
-              { q: "Do you offer a free tier?", a: "Absolutely. The Free plan gives you 100 credits per month — perfect to explore Grexo." },
-              { q: "Can I cancel anytime?", a: "Yes, plans are flexible and you can switch or cancel from your settings at any time." },
-            ].map((f, i) => (
-              <AccordionItem key={i} value={`item-${i}`} className="glass rounded-xl px-5 border-0" data-testid={`faq-item-${i}`}>
-                <AccordionTrigger className="text-left hover:no-underline">{f.q}</AccordionTrigger>
-                <AccordionContent className="text-slate-400">{f.a}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
+      <section className="py-24 max-w-3xl mx-auto px-6">
+        <h2 className="text-3xl font-light text-center mb-12">Frequently Asked Questions</h2>
+        <Accordion type="single" collapsible className="space-y-4">
+          {[
+            { q: "What models do you use?", a: "We intelligently route between Claude Sonnet, GPT-4o, and specialized open-source models depending on the task to give you the best speed and accuracy." },
+            { q: "Is my data private?", a: "Yes. All conversations and generated assets are strictly isolated to your account. We do not use your private data to train our models." },
+            { q: "Can I export the websites I build?", a: "Absolutely. The Website Builder allows you to download your full React/Vite source code as a ZIP file instantly." },
+          ].map((f, i) => (
+            <AccordionItem key={i} value={`item-${i}`} className="bg-white/5 border border-white/10 rounded-2xl px-6 data-[state=open]:bg-white/10 transition-colors">
+              <AccordionTrigger className="text-left text-white hover:no-underline py-6">{f.q}</AccordionTrigger>
+              <AccordionContent className="text-slate-400 pb-6 leading-relaxed">{f.a}</AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
       </section>
 
       {/* FOOTER */}
-      <footer className="relative pt-24 pb-10 border-t border-white/5 mt-24">
-        <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-10 text-sm">
-          <div>
+      <footer className="border-t border-white/10 pt-20 pb-10 mt-20 relative overflow-hidden">
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-64 bg-cyan-500/10 blur-[100px] pointer-events-none" />
+        <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-12 relative z-10">
+          <div className="md:col-span-1">
             <GrexoLogo />
-            <p className="mt-4 text-slate-500 max-w-xs">The future of creation, distilled into a beautiful chat.</p>
+            <p className="mt-6 text-sm text-slate-400">The premium AI workspace for creators.</p>
           </div>
           <div>
-            <div className="text-mono-accent mb-3">Product</div>
-            <ul className="space-y-2 text-slate-400">
-              <li><a href="#features">Features</a></li>
-              <li><a href="#pricing">Pricing</a></li>
-              <li><Link to="/signup">Sign up</Link></li>
+            <h4 className="text-white font-medium mb-4">Product</h4>
+            <ul className="space-y-3 text-sm text-slate-400">
+              <li><a href="#" className="hover:text-white transition">Features</a></li>
+              <li><a href="#pricing" className="hover:text-white transition">Pricing</a></li>
+              <li><a href="#" className="hover:text-white transition">Changelog</a></li>
             </ul>
           </div>
           <div>
-            <div className="text-mono-accent mb-3">Legal</div>
-            <ul className="space-y-2 text-slate-400">
-              <li><a href="#">Privacy</a></li>
-              <li><a href="#">Terms</a></li>
-              <li><a href="#">Security</a></li>
+            <h4 className="text-white font-medium mb-4">Company</h4>
+            <ul className="space-y-3 text-sm text-slate-400">
+              <li><a href="#" className="hover:text-white transition">About</a></li>
+              <li><a href="#" className="hover:text-white transition">Blog</a></li>
+              <li><a href="#" className="hover:text-white transition">Careers</a></li>
             </ul>
           </div>
           <div>
-            <div className="text-mono-accent mb-3">Social</div>
-            <ul className="space-y-2 text-slate-400">
-              <li><a href="#">Twitter</a></li>
-              <li><a href="#">LinkedIn</a></li>
-              <li><a href="#">Discord</a></li>
+            <h4 className="text-white font-medium mb-4">Legal</h4>
+            <ul className="space-y-3 text-sm text-slate-400">
+              <li><a href="#" className="hover:text-white transition">Privacy Policy</a></li>
+              <li><a href="#" className="hover:text-white transition">Terms of Service</a></li>
             </ul>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-6 mt-16">
-          <div className="text-[14vw] sm:text-[10vw] font-heading font-light tracking-tighter leading-none text-white/[0.04] select-none">
-            GREXO
-          </div>
-          <div className="mt-6 text-xs text-slate-600 flex justify-between">
-            <span>© 2026 Grexo AI. All rights reserved.</span>
-            <span>v1.0 · MVP</span>
+        <div className="max-w-7xl mx-auto px-6 mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+          <p>© 2026 Grexo AI Inc. All rights reserved.</p>
+          <div className="flex items-center gap-6">
+            <a href="#" className="hover:text-white transition">Twitter</a>
+            <a href="#" className="hover:text-white transition">GitHub</a>
+            <a href="#" className="hover:text-white transition">Discord</a>
           </div>
         </div>
       </footer>
