@@ -1,0 +1,5 @@
+User-agent: *
+
+Allow: /
+
+Sitemap: https://grexo-ai.vercel.app/sitemap.xml
