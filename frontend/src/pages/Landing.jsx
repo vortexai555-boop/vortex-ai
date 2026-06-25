@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import GrexoLogo from "@/components/GrexoLogo";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,34 @@ const testimonials = [
 
 export default function Landing() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleGenerate = () => {
+    if (!prompt.trim()) return;
+    setIsGenerating(true);
+    // Premium AI animation delay
+    setTimeout(() => {
+      setIsGenerating(false);
+      // Save prompt using existing architecture (sessionStorage)
+      sessionStorage.setItem("savedPrompt", prompt);
+      if (user) {
+        navigate("/dashboard/chat");
+      } else {
+        setShowAuthModal(true);
+      }
+    }, 1500);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleGenerate();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#020617] text-white relative overflow-x-hidden selection:bg-cyan-500/30 font-sans" id="top">
@@ -118,23 +147,35 @@ export default function Landing() {
                 Start Free <ArrowRight size={18} />
               </button>
             </Link>
-            <button className="h-12 px-8 rounded-full bg-white/5 text-white font-medium hover:bg-white/10 transition-all border border-white/10 flex items-center gap-2">
-              Watch Demo
-            </button>
           </div>
 
           {/* Prompt Input Box */}
           <div className="max-w-2xl mx-auto relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
             <div className="relative bg-[#0a0a0f] border border-white/10 rounded-2xl p-2 pl-6 flex items-center gap-4 shadow-2xl">
-              <Sparkles className="text-cyan-400 shrink-0" />
+              <Sparkles className={`text-cyan-400 shrink-0 ${isGenerating ? 'animate-pulse' : ''}`} />
               <input 
                 type="text" 
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Ask GREXO anything..." 
-                className="bg-transparent text-white w-full outline-none placeholder:text-slate-500 h-12"
+                className="bg-transparent text-white w-full outline-none placeholder:text-slate-500 h-12 disabled:opacity-50"
+                disabled={isGenerating}
               />
-              <button className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">
-                Generate
+              <button 
+                onClick={handleGenerate}
+                disabled={isGenerating || !prompt.trim()}
+                className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 min-w-[120px] flex items-center justify-center"
+              >
+                {isGenerating ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                    Analyzing...
+                  </span>
+                ) : (
+                  "Generate"
+                )}
               </button>
             </div>
           </div>
@@ -219,8 +260,7 @@ export default function Landing() {
           <div className="bg-[#0a0a0f] border border-white/10 rounded-3xl p-8 lg:p-12">
             <h3 className="text-xl font-medium text-white mb-2">Starter</h3>
             <div className="flex items-baseline gap-2 mb-4">
-              <span className="text-5xl font-light text-white">$0</span>
-              <span className="text-slate-500">/mo</span>
+              <span className="text-5xl font-light text-white">Free</span>
             </div>
             <p className="text-slate-400 mb-8 text-sm">Perfect for individuals starting with AI.</p>
             <button className="w-full py-3 rounded-full bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-colors mb-8">
@@ -239,8 +279,8 @@ export default function Landing() {
             </div>
             <h3 className="text-xl font-medium text-white mb-2">Pro</h3>
             <div className="flex items-baseline gap-2 mb-4">
-              <span className="text-5xl font-light text-white">$20</span>
-              <span className="text-slate-500">/mo</span>
+              <span className="text-5xl font-light text-white">₹299</span>
+              <span className="text-slate-500">/month</span>
             </div>
             <p className="text-slate-400 mb-8 text-sm">For professionals who ship daily.</p>
             <button className="w-full py-3 rounded-full bg-white text-black font-medium hover:bg-slate-200 transition-colors mb-8 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
@@ -314,6 +354,64 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      {/* AUTH MODAL */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-[#0a0a0f]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-[0_0_50px_rgba(0,229,255,0.1)] relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+              
+              <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+
+              <div className="text-center mb-6 relative z-10">
+                <div className="flex justify-center mb-4"><GrexoLogo /></div>
+                <h2 className="text-2xl font-medium text-white mb-2">Continue with Grexo AI</h2>
+                <p className="text-sm text-slate-400">Your prompt has been saved. Create your free account to unlock:</p>
+              </div>
+
+              <ul className="space-y-3 mb-8 text-sm text-slate-300 relative z-10">
+                <li className="flex items-center gap-3"><Sparkles size={16} className="text-cyan-400" /> AI Chat</li>
+                <li className="flex items-center gap-3"><Sparkles size={16} className="text-cyan-400" /> AI Image Generator</li>
+                <li className="flex items-center gap-3"><Sparkles size={16} className="text-cyan-400" /> AI Website Builder</li>
+                <li className="flex items-center gap-3"><Sparkles size={16} className="text-cyan-400" /> AI Content Writer</li>
+                <li className="flex items-center gap-3"><Sparkles size={16} className="text-cyan-400" /> All premium AI tools</li>
+              </ul>
+
+              <div className="flex flex-col gap-3 relative z-10">
+                <Link to="/signup" className="w-full">
+                  <button className="w-full h-12 bg-white text-black font-medium rounded-xl hover:bg-slate-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+                    Sign Up Free
+                  </button>
+                </Link>
+                <Link to="/login" className="w-full">
+                  <button className="w-full h-12 bg-white/5 border border-white/10 text-white font-medium rounded-xl hover:bg-white/10 transition-colors">
+                    Sign In
+                  </button>
+                </Link>
+              </div>
+              
+              <div className="mt-6 text-center text-xs text-slate-500 relative z-10">
+                Already have an account? <Link to="/login" className="text-cyan-400 hover:underline">Sign In</Link>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
