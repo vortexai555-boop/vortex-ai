@@ -24,6 +24,12 @@ import AdminPaymentSettings from "@/pages/admin/AdminPaymentSettings";
 import AdminSubscriptions from "@/pages/admin/AdminSubscriptions";
 import AdminAudit from "@/pages/admin/AdminAudit";
 import AdminPlans from "@/pages/admin/AdminPlans";
+import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminProjects from "@/pages/admin/AdminProjects";
+import AdminGenerations from "@/pages/admin/AdminGenerations";
+import AdminApiUsage from "@/pages/admin/AdminApiUsage";
+import AdminAnalytics from "@/pages/admin/AdminAnalytics";
+import AdminSystem from "@/pages/admin/AdminSystem";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 function AppRouter() {
@@ -54,11 +60,17 @@ function AppRouter() {
         <Route path="/dashboard/billing" element={<BillingPage />} />
         <Route path="/dashboard/payment" element={<PaymentPage />} />
         <Route path="/dashboard/admin" element={<AdminLayout />}>
-          <Route index element={<AdminPayments />} />
+          <Route index element={<AdminAnalytics />} />
+          <Route path="analytics" element={<AdminAnalytics />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="projects" element={<AdminProjects />} />
+          <Route path="generations" element={<AdminGenerations />} />
+          <Route path="api-usage" element={<AdminApiUsage />} />
           <Route path="payments" element={<AdminPayments />} />
           <Route path="subscriptions" element={<AdminSubscriptions />} />
           <Route path="plans" element={<AdminPlans />} />
           <Route path="settings" element={<AdminPaymentSettings />} />
+          <Route path="system" element={<AdminSystem />} />
           <Route path="audit" element={<AdminAudit />} />
         </Route>
         <Route path="/dashboard/profile" element={<ProfilePage />} />
