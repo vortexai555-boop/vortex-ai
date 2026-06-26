@@ -360,7 +360,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         # XSS Protection
         response.headers["X-XSS-Protection"] = "1; mode=block"
         # CSP Headers
-        response.headers["Content-Security-Policy"] = "default-src 'self'; connect-src 'self' https: wss:; img-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; connect-src 'self' https: wss:; img-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.emergent.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:;"
         
         return response
 
