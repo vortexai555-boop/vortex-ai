@@ -20,6 +20,37 @@ from google import genai
 from google.genai import types
 import base64
 
+import hashlib
+from cryptography.fernet import Fernet
+
+def get_encryption_key():
+    secret = os.environ.get("JWT_SECRET", "dev-secret-fallback-12345")
+    key = hashlib.sha256(secret.encode()).digest()
+    return base64.urlsafe_b64encode(key)
+
+cipher_suite = Fernet(get_encryption_key())
+
+def encrypt_key(plain_key: str) -> str:
+    if not plain_key:
+         return ""
+    return cipher_suite.encrypt(plain_key.encode()).decode()
+
+def decrypt_key(cipher_text: str) -> str:
+    if not cipher_text:
+         return ""
+    try:
+        return cipher_suite.decrypt(cipher_text.encode()).decode()
+    except Exception:
+        return ""
+
+class APIKeyUpdateIn(BaseModel):
+    provider: str
+    api_key: str
+
+class APIKeyTestIn(BaseModel):
+    provider: str
+    api_key: str
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
@@ -210,18 +241,26 @@ def detect_image_mime(b64: str) -> str:
     return "image/png"
 
 
-async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None) -> str:
+async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None, user_id: Optional[str] = None) -> str:
     messages = [
         {"role": "system", "content": f"{system}\nCurrent year is 2026. Current date is June 2026."},
         {"role": "user", "content": user_text}
     ]
-    return await generate_text_free(messages)
+    return await generate_text_free(messages, user_id=user_id)
 
 
-async def generate_text_free(messages: list) -> str:
+async def generate_text_free(messages: list, user_id: Optional[str] = None) -> str:
     # Try using Gemini first to support multimodal parts
     import os
-    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    gemini_key = None
+    
+    if user_id:
+        user_keys = await db.api_keys.find_one({"user_id": user_id})
+        if user_keys and user_keys.get("providers", {}).get("google"):
+            gemini_key = decrypt_key(user_keys["providers"]["google"]["api_key"])
+            
+    if not gemini_key:
+        gemini_key = os.getenv("GEMINI_API_KEY", "")
     
     # Check if there are any multimodal elements
     has_images = any(
@@ -269,7 +308,8 @@ async def generate_text_free(messages: list) -> str:
             if system_instruction:
                 geminiConfig["system_instruction"] = system_instruction
             
-            resp = await ai_client.aio.models.generate_content(
+            client = genai.Client(api_key=gemini_key)
+            resp = await client.aio.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=gemini_messages,
                 config=geminiConfig
@@ -339,7 +379,7 @@ async def web_search(query: str):
         return []
 
 
-async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = None):
+async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = None, user_id: str = None):
     try:
         final_prompt = prompt
         
@@ -348,7 +388,7 @@ async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = N
             # So we will just use the text generator to enhance the prompt
             try:
                 enhance_prompt = f"The user wants to generate an image based on: '{prompt}'. They attached files but we cannot read them in the free tier. Please write a highly detailed visual description to fulfill their request textually. Respond ONLY with the final descriptive image generation prompt."
-                final_prompt = await generate_text_free([{"role": "user", "content": enhance_prompt}])
+                final_prompt = await generate_text_free([{"role": "user", "content": enhance_prompt}], user_id=user_id)
             except Exception as e:
                 logger.warning(f"Failed to enhance prompt: {e}")
 
@@ -631,7 +671,7 @@ async def chat_send(
         
         messages_openai.append({"role": "user", "content": user_content_parts})
 
-        reply = await generate_text_free(messages_openai)
+        reply = await generate_text_free(messages_openai, user_id=user["user_id"])
 
         if not reply:
             reply = "No response from model."
@@ -718,7 +758,7 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
             {"role": "user", "content": user_content_parts}
         ]
         
-        reply = await generate_text_free(messages)
+        reply = await generate_text_free(messages, user_id=user["user_id"])
         
         if not reply:
             reply = ""
@@ -768,7 +808,7 @@ async def generate_image_api(request: Request, user=Depends(get_current_user)):
 
     try:
         results = await asyncio.gather(
-            *[gen_image(prompt, aspect_ratio, uploaded_files_data) for _ in range(count)]
+            *[gen_image(prompt, aspect_ratio, uploaded_files_data, user_id=user["user_id"]) for _ in range(count)]
         )
         logger.info("Results count: %d", len(results))
         logger.info("Valid images count: %d", len([r for r in results if r])) 
@@ -834,7 +874,7 @@ async def logos_generate(body: LogoGenIn, user=Depends(get_current_user)):
         f"Premium logo design for brand '{body.brand}' in the {body.industry} industry. Style: {body.style}. Vector-style, clean, professional, on solid background, centered composition. Variation {i+1}: distinctive concept."
         for i in range(n)
     ]
-    results = await asyncio.gather(*[gen_image(p) for p in prompts])
+    results = await asyncio.gather(*[gen_image(p, user_id=user["user_id"]) for p in prompts])
     items = []
     for data in results:
         if not data: continue
@@ -860,7 +900,7 @@ async def content_generate(body: ContentIn, user=Depends(get_current_user)):
     await require_credits(user, 1)
     tpl = CONTENT_TEMPLATES.get(body.template)
     if not tpl: raise HTTPException(status_code=400, detail="Unknown template")
-    out = await llm_complete(SYSTEM_PROMPTS["content"], tpl.format(topic=body.topic, tone=body.tone))
+    out = await llm_complete(SYSTEM_PROMPTS["content"], tpl.format(topic=body.topic, tone=body.tone), user_id=user["user_id"])
     await deduct_credits(user["user_id"], 1)
     await log_activity(user["user_id"], "content", f"{body.template}: {body.topic[:80]}")
     return {"output": out}
@@ -870,7 +910,7 @@ async def content_generate(body: ContentIn, user=Depends(get_current_user)):
 async def code_generate(body: CodeIn, user=Depends(get_current_user)):
     await require_credits(user, 1)
     prompt = f"Write production-quality {body.language} code for the following task:\n\n{body.task}\n\nReturn the code in a fenced ```{body.language.lower()} block, then a short explanation."
-    out = await llm_complete(SYSTEM_PROMPTS["code"], prompt)
+    out = await llm_complete(SYSTEM_PROMPTS["code"], prompt, user_id=user["user_id"])
     await deduct_credits(user["user_id"], 1)
     await log_activity(user["user_id"], "code", f"{body.language}: {body.task[:80]}")
     return {"output": out}
@@ -889,7 +929,7 @@ async def business_generate(body: BusinessIn, user=Depends(get_current_user)):
     await require_credits(user, 1)
     tpl = BUSINESS_PROMPTS.get(body.mode)
     if not tpl: raise HTTPException(status_code=400, detail="Unknown business mode")
-    out = await llm_complete(SYSTEM_PROMPTS["business"], tpl.format(input=body.input))
+    out = await llm_complete(SYSTEM_PROMPTS["business"], tpl.format(input=body.input), user_id=user["user_id"])
     await deduct_credits(user["user_id"], 1)
     await log_activity(user["user_id"], "business", f"{body.mode}: {body.input[:80]}")
     return {"output": out}
@@ -941,7 +981,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             {"role": "system", "content": SYSTEM_PROMPTS.get("website", "You are an expert AI software engineer.")},
             {"role": "user", "content": user_content_parts}
         ]
-        out = await generate_text_free(messages)
+        out = await generate_text_free(messages, user_id=user_id)
         
         import re
         parsed_files = {}
@@ -1106,7 +1146,7 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
             {"role": "user", "content": current_code}
         ]
         
-        out = await generate_text_free(messages)
+        out = await generate_text_free(messages, user_id=user_id)
         
         import re
         parsed_files = {}
@@ -1565,6 +1605,74 @@ async def admin_audit(_admin=Depends(require_admin)):
     docs = await db.audit_log.find({}, {"_id": 0}).sort("ts", -1).limit(200).to_list(200)
     return docs
 
+
+@api.get("/settings/apikeys")
+async def get_apikeys(req: Request):
+    user = _get_user_from_request(req)
+    if not user:
+         raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    keys = await db.api_keys.find_one({"user_id": user["user_id"]})
+    if not keys:
+         return {"providers": {}}
+         
+    safe_providers = {}
+    for prov, data in keys.get("providers", {}).items():
+         safe_providers[prov] = {"has_key": bool(data.get("api_key"))}
+    return {"providers": safe_providers}
+
+@api.post("/settings/apikeys")
+async def save_apikey(req: Request, data: APIKeyUpdateIn):
+    user = _get_user_from_request(req)
+    if not user:
+         raise HTTPException(status_code=401, detail="Unauthorized")
+         
+    encrypted_key = encrypt_key(data.api_key)
+    
+    await db.api_keys.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            f"providers.{data.provider}": {
+                "api_key": encrypted_key,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        }},
+        upsert=True
+    )
+    return {"status": "success"}
+
+@api.delete("/settings/apikeys/{provider}")
+async def delete_apikey(req: Request, provider: str):
+    user = _get_user_from_request(req)
+    if not user:
+         raise HTTPException(status_code=401, detail="Unauthorized")
+         
+    await db.api_keys.update_one(
+        {"user_id": user["user_id"]},
+        {"$unset": {f"providers.{provider}": ""}}
+    )
+    return {"status": "success"}
+
+@api.post("/settings/apikeys/test")
+async def test_apikey(req: Request, data: APIKeyTestIn):
+    user = _get_user_from_request(req)
+    if not user:
+         raise HTTPException(status_code=401, detail="Unauthorized")
+         
+    if data.provider == "google":
+         try:
+             client = genai.Client(api_key=data.api_key)
+             resp = await client.aio.models.generate_content(
+                 model='gemini-2.5-flash',
+                 contents='say hi'
+             )
+             if resp.text:
+                 return {"status": "success"}
+             raise ValueError("Empty response")
+         except Exception as ex:
+             raise HTTPException(status_code=400, detail=str(ex))
+    else:
+         raise HTTPException(status_code=400, detail="Unsupported provider")
 
 @api.get("/")
 async def root(): return {"app": "GREXO AI", "ok": True}
