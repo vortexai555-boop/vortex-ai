@@ -89,7 +89,6 @@
     "@vitejs/plugin-react": "^4.2.1",
     "@babel/plugin-proposal-private-property-in-object": "7.21.11",
     "@craco/craco": "7.1.0",
-    // ... rest of the dependencies
   }
     "@babel/plugin-proposal-private-property-in-object": "7.21.11",
     "@craco/craco": "7.1.0",
@@ -107,4 +106,3 @@
     "postcss": "8.4.49",
     "tailwindcss": "3.4.17"
   }
-}
