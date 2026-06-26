@@ -1,6 +1,6 @@
 import React from "react";
 import useSWR from "swr";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 
 export default function AdminUsers() {
   const { data, error } = useSWR("/admin/users", (url) => api.get(url).then(r => r.data));
