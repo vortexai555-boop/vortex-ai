@@ -51,6 +51,22 @@ let webpackConfig = {
         ],
       };
 
+      // Workaround for React Refresh Babel plugin in production
+      webpackConfig.module.rules = webpackConfig.module.rules.map(rule => {
+        if (rule.oneOf) {
+          rule.oneOf = rule.oneOf.map(r => {
+            if (r.loader && r.loader.includes('babel-loader') && r.options && r.options.plugins) {
+              r.options.plugins = r.options.plugins.filter(p => {
+                const pluginName = Array.isArray(p) ? p[0] : p;
+                return typeof pluginName === 'string' ? !pluginName.includes('react-refresh/babel') : true;
+              });
+            }
+            return r;
+          });
+        }
+        return rule;
+      });
+
       // Add health check plugin to webpack if enabled
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);
