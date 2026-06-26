@@ -10,10 +10,25 @@ import api from "@/lib/api";
 export default function SettingsPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [providers, setProviders] = useState({ google: { has_key: false } });
-  const [geminiKey, setGeminiKey] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
+  const [providers, setProviders] = useState({});
+  const [defaultProvider, setDefaultProvider] = useState("google");
+  const [keysInput, setKeysInput] = useState({});
+  const [isSaving, setIsSaving] = useState({});
+  const [isTesting, setIsTesting] = useState({});
+
+  const providerList = [
+    { id: "google", name: "Google Gemini" },
+    { id: "openai", name: "OpenAI" },
+    { id: "anthropic", name: "Anthropic" },
+    { id: "groq", name: "Groq" },
+    { id: "openrouter", name: "OpenRouter" },
+    { id: "deepseek", name: "DeepSeek" },
+    { id: "together", name: "Together AI" },
+    { id: "mistral", name: "Mistral" },
+    { id: "fal", name: "Fal" },
+    { id: "replicate", name: "Replicate" },
+    { id: "stability", name: "Stability AI" },
+  ];
 
   useEffect(() => {
     loadApiKeys();
@@ -22,7 +37,8 @@ export default function SettingsPage() {
   const loadApiKeys = async () => {
     try {
       const res = await api.get("/settings/apikeys");
-      setProviders(res.data.providers || { google: { has_key: false } });
+      setProviders(res.data.providers || {});
+      setDefaultProvider(res.data.default_provider || "google");
     } catch (e) {
       console.error(e);
     }
@@ -34,18 +50,29 @@ export default function SettingsPage() {
     navigate("/");
   };
 
-  const handleSaveKey = async (provider, key) => {
-    if (!key.trim()) return;
-    setIsSaving(true);
+  const handleSetDefaultProvider = async (provider) => {
+    try {
+      await api.post("/settings/default_provider", { provider });
+      setDefaultProvider(provider);
+      toast.success(`Default provider set to ${provider}`);
+    } catch (e) {
+      toast.error("Failed to set default provider");
+    }
+  };
+
+  const handleSaveKey = async (provider) => {
+    const key = keysInput[provider];
+    if (!key?.trim()) return;
+    setIsSaving(p => ({ ...p, [provider]: true }));
     try {
       await api.post("/settings/apikeys", { provider, api_key: key });
       toast.success(`${provider} API key saved securely.`);
-      setGeminiKey("");
+      setKeysInput(p => ({ ...p, [provider]: "" }));
       loadApiKeys();
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to save API key");
     } finally {
-      setIsSaving(false);
+      setIsSaving(p => ({ ...p, [provider]: false }));
     }
   };
 
@@ -60,17 +87,14 @@ export default function SettingsPage() {
     }
   };
 
-  const handleTestKey = async (provider, key) => {
-     if (!key.trim() && !providers[provider]?.has_key) return;
-     setIsTesting(true);
+  const handleTestKey = async (provider) => {
+     const key = keysInput[provider];
+     if (!key?.trim() && !providers[provider]?.has_key) return;
+     setIsTesting(p => ({ ...p, [provider]: true }));
      try {
-       // if we have a key in input, test that. if not, backend can't test unless we send it.
-       // actually, our test endpoint requires the key to be sent.
-       // if they already saved it, we can't test without them re-entering or modifying the test endpoint.
-       // Let's just test the input key.
-       if (!key.trim()) {
+       if (!key?.trim()) {
            toast.error("Please enter a key to test first.");
-           setIsTesting(false);
+           setIsTesting(p => ({ ...p, [provider]: false }));
            return;
        }
        await api.post("/settings/apikeys/test", { provider, api_key: key });
@@ -78,7 +102,7 @@ export default function SettingsPage() {
      } catch (e) {
        toast.error(e.response?.data?.detail || "Invalid API key");
      } finally {
-       setIsTesting(false);
+       setIsTesting(p => ({ ...p, [provider]: false }));
      }
   };
 
@@ -89,48 +113,65 @@ export default function SettingsPage() {
         <h1 className="text-4xl font-light tracking-tight">Settings</h1>
 
         <div className="mt-8 space-y-4">
+          <Row title="Default AI Provider" desc="Select the primary AI provider used by the platform.">
+            <select 
+              value={defaultProvider} 
+              onChange={(e) => handleSetDefaultProvider(e.target.value)}
+              className="bg-[#0f1115] border border-white/10 text-white text-sm rounded-md focus:ring-cyan-500 focus:border-cyan-500 block w-[200px] p-2.5"
+            >
+              {providerList.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </Row>
+
           <Row title="Bring Your Own Key (BYOK)" desc="Use your own API keys to bypass rate limits and utilize personal quotas. Keys are encrypted at rest.">
-            <div className="flex flex-col gap-3 min-w-[300px]">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-slate-300">Google Gemini API Key</label>
-                <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-6 w-full max-w-md">
+              {providerList.map(p => (
+                <div key={p.id} className="flex flex-col gap-1 border-b border-white/5 pb-4 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-300">{p.name} API Key</label>
+                    {providers[p.id]?.has_key && (
+                      <span className="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">Active</span>
+                    )}
+                  </div>
                   <Input 
                     type="password"
-                    placeholder={providers.google?.has_key ? "••••••••••••••••••••••••" : "AIzaSy..."}
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKey(e.target.value)}
+                    placeholder={providers[p.id]?.has_key ? "••••••••••••••••••••••••" : "Enter API Key..."}
+                    value={keysInput[p.id] || ""}
+                    onChange={(e) => setKeysInput(prev => ({ ...prev, [p.id]: e.target.value }))}
                     className="bg-[#0f1115] border-white/10"
                   />
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="flex-1 bg-white/5 border-white/10 hover:bg-white/10"
-                    onClick={() => handleTestKey("google", geminiKey)}
-                    disabled={isTesting || !geminiKey}
-                  >
-                    {isTesting ? "Testing..." : "Test Key"}
-                  </Button>
-                  <Button 
-                    size="sm"
-                    className="flex-1 bg-cyan-600 hover:bg-cyan-500"
-                    onClick={() => handleSaveKey("google", geminiKey)}
-                    disabled={isSaving || !geminiKey}
-                  >
-                    {isSaving ? "Saving..." : "Save Key"}
-                  </Button>
-                  {providers.google?.has_key && (
+                  <div className="flex items-center gap-2 mt-2">
                     <Button 
                       size="sm" 
-                      variant="destructive" 
-                      onClick={() => handleDeleteKey("google")}
+                      variant="outline" 
+                      className="flex-1 bg-white/5 border-white/10 hover:bg-white/10"
+                      onClick={() => handleTestKey(p.id)}
+                      disabled={isTesting[p.id] || !keysInput[p.id]}
                     >
-                      Remove
+                      {isTesting[p.id] ? "Testing..." : "Test"}
                     </Button>
-                  )}
+                    <Button 
+                      size="sm"
+                      className="flex-1 bg-cyan-600 hover:bg-cyan-500"
+                      onClick={() => handleSaveKey(p.id)}
+                      disabled={isSaving[p.id] || !keysInput[p.id]}
+                    >
+                      {isSaving[p.id] ? "Saving..." : "Save"}
+                    </Button>
+                    {providers[p.id]?.has_key && (
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        onClick={() => handleDeleteKey(p.id)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           </Row>
 
