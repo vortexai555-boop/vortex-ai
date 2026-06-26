@@ -416,11 +416,16 @@ export default function WebsiteEditor({
                   {sidebarTab === 'ai' && (
                     <div className="p-4 flex flex-col h-full gap-4">
                       <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest">AI Assistant</div>
-                      <div className="flex-1 bg-[#09090b] rounded-lg border border-white/5 p-3 flex flex-col">
-                        <div className="flex-1 text-sm text-slate-400 flex flex-col justify-end">
-                          <p className="mb-2">I am ready to help you modify this website. Describe the changes you want below.</p>
+                      <div className="flex-1 bg-[#09090b] rounded-lg border border-white/5 p-3 flex flex-col overflow-hidden">
+                        <div className="flex-1 text-sm flex flex-col overflow-y-auto gap-4 scrollbar-thin">
+                          <p className="text-slate-400">I am ready to help you modify this website. Describe the changes you want below.</p>
+                          {project?.chat_history?.map((msg, idx) => (
+                            <div key={idx} className={`p-3 rounded-lg ${msg.role === 'user' ? 'bg-cyan-900/30 text-cyan-100 self-end ml-4' : 'bg-white/5 text-slate-300 self-start mr-4'}`}>
+                              <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                            </div>
+                          ))}
                         </div>
-                        <div className="mt-4 flex flex-col gap-2">
+                        <div className="mt-4 flex flex-col gap-2 shrink-0 border-t border-white/10 pt-4">
                           <Textarea 
                             placeholder="Add a dark mode toggle to the navbar..." 
                             className="w-full bg-[#18181b] text-sm text-gray-200 border-white/10 focus-visible:ring-1 focus-visible:ring-cyan-500 resize-none min-h-[80px]"
