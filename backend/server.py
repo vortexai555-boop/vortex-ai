@@ -249,120 +249,28 @@ async def llm_complete(system: str, user_text: str, session_id: Optional[str] = 
     return await generate_text_free(messages, user_id=user_id)
 
 
+from ai_providers import ProviderManager
+
 async def generate_text_free(messages: list, user_id: Optional[str] = None) -> str:
-    # Try using Gemini first to support multimodal parts
-    import os
-    gemini_key = None
-    
+    user_keys = {}
+    default_provider = "google"
     if user_id:
-        user_keys = await db.api_keys.find_one({"user_id": user_id})
-        if user_keys and user_keys.get("providers", {}).get("google"):
-            gemini_key = decrypt_key(user_keys["providers"]["google"]["api_key"])
+        user_doc = await db.api_keys.find_one({"user_id": user_id})
+        if user_doc:
+            keys = user_doc.get("providers", {})
+            for k, v in keys.items():
+                if v.get("api_key"):
+                    user_keys[k] = {"api_key": decrypt_key(v["api_key"])}
+        u = await db.users.find_one({"user_id": user_id})
+        if u and u.get("default_provider"):
+            default_provider = u["default_provider"]
             
-    if not gemini_key:
-        gemini_key = os.getenv("GEMINI_API_KEY", "")
-    
-    # Check if there are any multimodal elements
-    has_images = any(
-        isinstance(m["content"], list) and any(c.get("type") == "image_url" for c in m["content"])
-        for m in messages
-    )
-    
-    if has_images and not gemini_key:
-        raise HTTPException(
-            status_code=400, 
-            detail="GEMINI_API_KEY is missing. The fallback AI (Pollinations) does not support image analysis. Please configure your Gemini API Key in the backend .env file to enable vision."
-        )
-
-    if gemini_key:
-        try:
-            gemini_messages = []
-            system_instruction = ""
-            for m in messages:
-                if m["role"] == "system":
-                    system_instruction += m["content"] + "\n"
-                    continue
-                
-                role = "user" if m["role"] == "user" else "model"
-                parts = []
-                
-                if isinstance(m["content"], str):
-                    parts.append(types.Part.from_text(text=m["content"]))
-                elif isinstance(m["content"], list):
-                    for c in m["content"]:
-                        if c.get("type") == "text":
-                            parts.append(types.Part.from_text(text=c["text"]))
-                        elif c.get("type") == "image_url":
-                            url = c["image_url"]["url"]
-                            if url.startswith("data:"):
-                                mime, b64 = url.split(";", 1)
-                                mime = mime.replace("data:", "")
-                                b64 = b64.replace("base64,", "")
-                                import base64
-                                # Fix missing padding if any
-                                b64 += "=" * ((4 - len(b64) % 4) % 4)
-                                parts.append(types.Part.from_bytes(data=base64.b64decode(b64), mime_type=mime))
-                gemini_messages.append( types.Content(  role=role,parts=parts))
-            
-            geminiConfig = {}
-            if system_instruction:
-                geminiConfig["system_instruction"] = system_instruction
-            
-            client = genai.Client(api_key=gemini_key)
-            resp = await client.aio.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=gemini_messages,
-                config=geminiConfig
-            )
-            return resp.text.strip()
-        except Exception as ex:
-            logger.error(f"Gemini generation failed: {ex}, falling back to pollinations.")
-            if has_images:
-                raise HTTPException(status_code=500, detail=f"Gemini AI failed to process image: {ex}")
-
     try:
-        import httpx
-        
-        # Pollinations does not support list content, convert to text
-        pollinations_messages = []
-        for m in messages:
-            content = m["content"]
-            if isinstance(content, list):
-                content = "\n".join([c["text"] for c in content if c.get("type") == "text"])
-            pollinations_messages.append({"role": m["role"], "content": content})
-            
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            resp = await client.post("https://text.pollinations.ai/openai", json={
-                "messages": pollinations_messages,
-                "model": "openai"
-            })
-            content = ""
-            if resp.status_code == 200:
-                try:
-                    data = resp.json()
-                    if "choices" in data and len(data["choices"]) > 0:
-                        msg = data["choices"][0].get("message", {})
-                        content = msg.get("content")
-                        if not content:
-                            reasoning = msg.get("reasoning", "")
-                            if reasoning:
-                                content = "I cannot determine the exact answer without internet access. Please turn on 'Web Search' for this query."
-                            else:
-                                content = "I couldn't generate a proper response."
-                    else:
-                        content = resp.text
-                except:
-                    content = resp.text
-            else:
-                content = resp.text
-            
-            # Remove ad
-            content = content.split("Support Pollinations.AI:")[0]
-            content = content.split("🌸 Ad 🌸")[0]
-            content = content.replace("Powered by Pollinations.AI free text APIs.", "")
-            return content.strip()
+        return await ProviderManager.execute_text(
+            messages, user_keys, default_provider=default_provider, system_fallback=True
+        )
     except Exception as e:
-        logger.exception("Free text generation failed: %s", e)
+        logger.error(f"Text generation failed: {e}")
         raise e
 
 from duckduckgo_search import DDGS
@@ -378,52 +286,33 @@ async def web_search(query: str):
         logger.exception("search failed: %s", e)
         return []
 
-
 async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = None, user_id: str = None):
     try:
-        final_prompt = prompt
-        
-        if files_data:
-            # We don't have free multimodal reading available.
-            # So we will just use the text generator to enhance the prompt
-            try:
-                enhance_prompt = f"The user wants to generate an image based on: '{prompt}'. They attached files but we cannot read them in the free tier. Please write a highly detailed visual description to fulfill their request textually. Respond ONLY with the final descriptive image generation prompt."
-                final_prompt = await generate_text_free([{"role": "user", "content": enhance_prompt}], user_id=user_id)
-            except Exception as e:
-                logger.warning(f"Failed to enhance prompt: {e}")
-
-        import urllib.parse
-        import random
-        import httpx
-        import base64
-        
-        width, height = 1024, 1024
-        if aspect_ratio == "16:9":
-            width, height = 1024, 576
-        elif aspect_ratio == "9:16":
-            width, height = 576, 1024
-        elif aspect_ratio == "4:3":
-            width, height = 1024, 768
-        elif aspect_ratio == "3:4":
-            width, height = 768, 1024
-        elif aspect_ratio == "2:3":
-            width, height = 682, 1024
-
-        prompt_val = final_prompt[:1500]
-        if not prompt_val.strip():
-            prompt_val = "A cool aesthetic abstract image"
-            
-        encoded_prompt = urllib.parse.quote(prompt_val)
-        seed = random.randint(1, 100000000)
-        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
-        
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, timeout=60.0)
-            if resp.status_code == 200:
-                return base64.b64encode(resp.content).decode("utf-8")
+        user_keys = {}
+        default_provider = "google"
+        if user_id:
+            user_doc = await db.api_keys.find_one({"user_id": user_id})
+            if user_doc:
+                keys = user_doc.get("providers", {})
+                for k, v in keys.items():
+                    if v.get("api_key"):
+                        user_keys[k] = {"api_key": decrypt_key(v["api_key"])}
+            u = await db.users.find_one({"user_id": user_id})
+            if u and u.get("default_provider"):
+                default_provider = u["default_provider"]
                 
-        return None
-
+        # Handle files_data enhancement if needed
+        final_prompt = prompt
+        if files_data:
+            enhance_prompt = f"The user wants to generate an image based on: '{prompt}'. They attached files but we cannot read them directly. Please write a highly detailed visual description to fulfill their request textually. Respond ONLY with the final descriptive image generation prompt."
+            final_prompt = await generate_text_free([{"role": "user", "content": enhance_prompt}], user_id=user_id)
+            
+        b64 = await ProviderManager.execute_image(
+            final_prompt, user_keys, aspect_ratio, default_provider=default_provider, system_fallback=True
+        )
+        if b64 and b64.startswith("data:"):
+             return b64.split("base64,")[1]
+        return b64
     except Exception as e:
         logger.exception("Image generation failed: %s", e)
         error_str = str(e)
@@ -1613,13 +1502,27 @@ async def get_apikeys(req: Request):
          raise HTTPException(status_code=401, detail="Unauthorized")
     
     keys = await db.api_keys.find_one({"user_id": user["user_id"]})
+    u = await db.users.find_one({"user_id": user["user_id"]})
+    default_provider = u.get("default_provider", "google") if u else "google"
+    
     if not keys:
-         return {"providers": {}}
+         return {"providers": {}, "default_provider": default_provider}
          
     safe_providers = {}
     for prov, data in keys.get("providers", {}).items():
          safe_providers[prov] = {"has_key": bool(data.get("api_key"))}
-    return {"providers": safe_providers}
+    return {"providers": safe_providers, "default_provider": default_provider}
+
+class DefaultProviderIn(BaseModel):
+    provider: str
+
+@api.post("/settings/default_provider")
+async def set_default_provider(req: Request, data: DefaultProviderIn):
+    user = _get_user_from_request(req)
+    if not user:
+         raise HTTPException(status_code=401, detail="Unauthorized")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"default_provider": data.provider}})
+    return {"status": "success"}
 
 @api.post("/settings/apikeys")
 async def save_apikey(req: Request, data: APIKeyUpdateIn):
@@ -1659,20 +1562,15 @@ async def test_apikey(req: Request, data: APIKeyTestIn):
     if not user:
          raise HTTPException(status_code=401, detail="Unauthorized")
          
-    if data.provider == "google":
-         try:
-             client = genai.Client(api_key=data.api_key)
-             resp = await client.aio.models.generate_content(
-                 model='gemini-2.5-flash',
-                 contents='say hi'
-             )
-             if resp.text:
-                 return {"status": "success"}
-             raise ValueError("Empty response")
-         except Exception as ex:
-             raise HTTPException(status_code=400, detail=str(ex))
-    else:
-         raise HTTPException(status_code=400, detail="Unsupported provider")
+    try:
+         from ai_providers import ProviderFactory
+         provider = ProviderFactory.get_provider(data.provider)
+         resp = await provider.generate_text([{"role": "user", "content": "say hi"}], data.api_key)
+         if resp:
+             return {"status": "success"}
+         raise ValueError("Empty response")
+    except Exception as ex:
+         raise HTTPException(status_code=400, detail=str(ex))
 
 @api.get("/")
 async def root(): return {"app": "GREXO AI", "ok": True}
