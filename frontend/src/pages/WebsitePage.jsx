@@ -46,7 +46,7 @@ export default function WebsitePage() {
       const proj = await api.get(`/website/${done.site_id}`);
       setCurrentProject(proj.data);
       setViewState("editor");
-      toast.success("Your website is ready!");
+      toast.success("Your project is ready!");
     } catch (err) {
       toast.error(err?.response?.data?.detail || err.message || "Generation failed");
     } finally {
@@ -65,7 +65,7 @@ export default function WebsitePage() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this website?")) return;
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
     try {
       await api.delete(`/website/${id}`);
       setProjects(p => p.filter(x => x.id !== id));
@@ -114,7 +114,7 @@ export default function WebsitePage() {
       if (!done || !done.files) throw new Error("Edit failed");
       
       setCurrentProject(p => p ? { ...p, files: done.files } : null);
-      toast.success("Website updated!");
+      toast.success("Project updated!");
     } catch (err) {
       toast.error(err?.response?.data?.detail || err.message || "AI Edit failed");
     }
