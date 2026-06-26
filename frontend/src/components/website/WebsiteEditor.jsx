@@ -18,6 +18,7 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import api from "@/lib/api";
 import { SandpackProvider, SandpackPreview, SandpackConsole } from "@codesandbox/sandpack-react";
+import ExportDeployModal from "./ExportDeployModal";
 
 const getFileInfo = (path) => {
   if (!path) return { icon: File, name: "", lang: "plaintext", color: "text-slate-400" };
@@ -188,16 +189,6 @@ export default function WebsiteEditor({
     }
   };
 
-  const downloadZip = async () => {
-    if (!files) return;
-    const zip = new JSZip();
-    for (const [path, content] of Object.entries(files)) {
-      zip.file(path, content);
-    }
-    const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, `${project?.name || 'project'}.zip`);
-  };
-
   const handleChat = async () => {
     if (!chatInput.trim() || isChatting) return;
     setIsChatting(true);
@@ -312,9 +303,7 @@ export default function WebsiteEditor({
           <Button size="sm" variant="ghost" onClick={handleCopy} className="text-slate-300 hover:text-white h-8 hover:bg-white/10 bg-white/5 px-3 rounded-md" title="Copy HTML/CSS/JS">
             <Copy size={14} className="mr-2" /> <span className="text-xs font-medium">Copy</span>
           </Button>
-          <Button size="sm" variant="ghost" onClick={downloadZip} className="text-slate-300 hover:text-white h-8 hover:bg-white/10 bg-white/5 px-3 rounded-md" title="Download Source (.zip)">
-            <Download size={14} className="mr-2" /> <span className="text-xs font-medium">Export</span>
-          </Button>
+          <ExportDeployModal project={project} files={files} />
           {!isFullScreen && (
             <Button size="sm" variant="ghost" onClick={() => setIsFullScreen(true)} className="text-cyan-400 hover:text-cyan-300 h-8 hover:bg-white/5 px-2.5 ml-1 rounded-md" title="Full Screen IDE">
               <Maximize2 size={14} />
