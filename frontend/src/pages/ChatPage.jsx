@@ -362,7 +362,7 @@ useEffect(() => {
               <label htmlFor="file-upload-chat" className="h-11 px-3 mt-auto flex items-center justify-center text-slate-500 hover:text-slate-300 cursor-pointer transition-colors" title="Upload file or image">
                 <PlusCircle size={24} weight="regular" className="pointer-events-none" />
                 <input id="file-upload-chat" type="file" multiple accept="image/*,application/pdf" className="sr-only" onChange={(e) => {
-                  console.log("File selected:", e.target.files);
+                  // Empty or removed
                   handleFileChange(e);
                 }} />
               </label>
