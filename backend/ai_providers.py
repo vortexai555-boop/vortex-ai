@@ -261,6 +261,7 @@ class ProviderFactory:
 class ProviderManager:
     @staticmethod
     async def execute_text(messages: List[Dict[str, Any]], user_keys: Dict[str, Any], default_provider: str = "google", system_fallback: bool = False) -> str:
+        last_error = None
         # 1. Try selected provider
         provider_name = default_provider
         api_key = user_keys.get(provider_name, {}).get("api_key")
@@ -271,6 +272,7 @@ class ProviderManager:
                  return await provider.generate_text(messages, api_key)
              except Exception as e:
                  logger.error(f"Provider {provider_name} failed: {e}")
+                 last_error = e
                  
         # 2. Fallback to other available personal keys
         for p_name, data in user_keys.items():
@@ -280,6 +282,7 @@ class ProviderManager:
                      return await provider.generate_text(messages, data["api_key"])
                  except Exception as e:
                      logger.error(f"Fallback Provider {p_name} failed: {e}")
+                     last_error = e
                      
         # 3. System Fallback
         if system_fallback:
@@ -290,8 +293,13 @@ class ProviderManager:
                      return await provider.generate_text(messages, system_key)
                  except Exception as e:
                      logger.error(f"System Fallback Provider failed: {e}")
+                     last_error = e
+             else:
+                 last_error = Exception("System fallback requested but GEMINI_API_KEY environment variable is not set.")
                  
-        raise Exception("MISSING_API_KEY")
+        if last_error:
+            raise last_error
+        raise Exception("MISSING_API_KEY: No API keys were provided or configured.")
 
     @staticmethod
     async def execute_image(prompt: str, user_keys: Dict[str, Any], aspect_ratio: str = "1:1", default_provider: str = "google", system_fallback: bool = False) -> str:
