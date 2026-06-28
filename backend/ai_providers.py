@@ -280,6 +280,16 @@ class ProviderManager:
                      return await provider.generate_text(messages, data["api_key"])
                  except Exception as e:
                      logger.error(f"Fallback Provider {p_name} failed: {e}")
+                     
+        # 3. System Fallback
+        if system_fallback:
+             system_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("EMERGENT_LLM_KEY")
+             if system_key:
+                 try:
+                     provider = ProviderFactory.get_provider("google")
+                     return await provider.generate_text(messages, system_key)
+                 except Exception as e:
+                     logger.error(f"System Fallback Provider failed: {e}")
                  
         raise Exception("MISSING_API_KEY")
 
