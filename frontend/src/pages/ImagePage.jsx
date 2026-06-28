@@ -11,7 +11,6 @@ import {
   Paperclip, Trash, FilePdf
 } from "@phosphor-icons/react";
 import { saveAs } from "file-saver";
-import { useBYOK } from "@/hooks/useBYOK";
 
 const STYLES = [
   { v: "realistic", l: "Realistic", suffix: "photorealistic, ultra detailed, natural lighting, 50mm lens, professional photography" },
@@ -45,7 +44,6 @@ const ASPECT_CLASS = {
 
 export default function ImagePage() {
   const { refresh } = useAuth();
-  const { requireKey } = useBYOK();
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState("realistic");
   const [aspect, setAspect] = useState("1:1");
@@ -113,8 +111,7 @@ export default function ImagePage() {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const generate = () => {
-    requireKey(async () => {
+  const generate = async () => {
       const p = prompt.trim();
       if ((!p && attachments.length === 0) || generating) return;
       const styleDef = STYLES.find((s) => s.v === style);
@@ -145,7 +142,6 @@ export default function ImagePage() {
       } finally {
         setGenerating(false);
       }
-    });
   };
 
   const mimeOf = (img) => img?.mime || (img?.data?.startsWith("/9j/") ? "image/jpeg" : "image/png");
