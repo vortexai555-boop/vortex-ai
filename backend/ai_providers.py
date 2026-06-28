@@ -255,13 +255,10 @@ class ProviderFactory:
         
 class ProviderManager:
     @staticmethod
-    async def execute_text(messages: List[Dict[str, Any]], user_keys: Dict[str, Any], default_provider: str = "google", system_fallback: bool = True) -> str:
+    async def execute_text(messages: List[Dict[str, Any]], user_keys: Dict[str, Any], default_provider: str = "google", system_fallback: bool = False) -> str:
         # 1. Try selected provider
         provider_name = default_provider
         api_key = user_keys.get(provider_name, {}).get("api_key")
-        
-        if not api_key and system_fallback and provider_name == "google":
-             api_key = os.getenv("GEMINI_API_KEY")
              
         if api_key:
              try:
@@ -278,45 +275,13 @@ class ProviderManager:
                      return await provider.generate_text(messages, data["api_key"])
                  except Exception as e:
                      logger.error(f"Fallback Provider {p_name} failed: {e}")
-                     
-        # 3. System Fallback
-        if system_fallback:
-             # Try system Gemini
-             sys_gemini = os.getenv("GEMINI_API_KEY")
-             if sys_gemini:
-                  try:
-                      provider = ProviderFactory.get_provider("google")
-                      return await provider.generate_text(messages, sys_gemini)
-                  except Exception:
-                      pass
-                      
-             # Try free pollinations
-             try:
-                pollinations_messages = []
-                for m in messages:
-                    content = m["content"]
-                    if isinstance(content, list):
-                        content = "\n".join([c["text"] for c in content if c.get("type") == "text"])
-                    pollinations_messages.append({"role": m["role"], "content": content})
-                async with httpx.AsyncClient(timeout=300.0) as client:
-                    resp = await client.post("https://text.pollinations.ai/openai", json={
-                        "messages": pollinations_messages,
-                        "model": "openai"
-                    })
-                    data = resp.json()
-                    return data["choices"][0]["message"]["content"].strip()
-             except Exception as e:
-                 logger.error(f"Pollinations fallback failed: {e}")
                  
-        raise Exception("All providers and fallbacks failed to generate text")
+        raise Exception("MISSING_API_KEY")
 
     @staticmethod
-    async def execute_image(prompt: str, user_keys: Dict[str, Any], aspect_ratio: str = "1:1", default_provider: str = "google", system_fallback: bool = True) -> str:
+    async def execute_image(prompt: str, user_keys: Dict[str, Any], aspect_ratio: str = "1:1", default_provider: str = "google", system_fallback: bool = False) -> str:
         provider_name = default_provider
         api_key = user_keys.get(provider_name, {}).get("api_key")
-        
-        if not api_key and system_fallback and provider_name == "google":
-             api_key = os.getenv("GEMINI_API_KEY")
              
         if api_key:
              try:
@@ -335,29 +300,6 @@ class ProviderManager:
                      if res: return res
                  except Exception:
                      pass
-                     
-        if system_fallback:
-             sys_gemini = os.getenv("GEMINI_API_KEY")
-             if sys_gemini:
-                  try:
-                      provider = ProviderFactory.get_provider("google")
-                      res = await provider.generate_image(prompt, sys_gemini, aspect_ratio)
-                      if res: return res
-                  except Exception:
-                      pass
-                      
-             try:
-                 # pollinations image fallback
-                 import urllib.parse
-                 encoded_prompt = urllib.parse.quote(prompt)
-                 url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?nologo=true"
-                 async with httpx.AsyncClient(timeout=30.0) as client:
-                     resp = await client.get(url)
-                     if resp.status_code == 200:
-                         b64 = base64.b64encode(resp.content).decode('utf-8')
-                         return f"data:image/jpeg;base64,{b64}"
-             except Exception as e:
-                 logger.error(f"Pollinations image fallback failed: {e}")
                  
-        raise Exception("All providers and fallbacks failed to generate image")
+        raise Exception("MISSING_API_KEY")
 
