@@ -8,7 +8,6 @@ import {
   TextAa, ListDashes, Translate, Users, FilePdf, Scan,
   ArrowLeft, UploadSimple, Copy, MagicWand, FileImage, Sparkle, PlusCircle
 } from "@phosphor-icons/react";
-import { useBYOK } from "@/hooks/useBYOK";
 
 const TOOLS = [
   { id: "document_writer", name: "Document Writer", description: "Write comprehensive documents from scratch.", icon: FileText, needsFile: false, needsInputText: false, needsPrompt: true, promptLabel: "What should the document be about?", btnText: "Write Document" },
@@ -25,7 +24,6 @@ const TOOLS = [
 
 export default function ProductivityPage() {
   const { user } = useAuth();
-  const { requireKey } = useBYOK();
   const [activeTool, setActiveTool] = useState(null);
 
   const [prompt, setPrompt] = useState("");
@@ -65,8 +63,7 @@ export default function ProductivityPage() {
     }
   };
 
-  const handleGenerate = () => {
-    requireKey(async () => {
+  const handleGenerate = async () => {
       if (activeTool.needsPrompt && !prompt.trim()) {
         toast.error(activeTool.promptLabel + " is required.");
         return;
@@ -99,7 +96,6 @@ export default function ProductivityPage() {
       } finally {
         setLoading(false);
       }
-    });
   };
 
   const handleCopy = () => {
