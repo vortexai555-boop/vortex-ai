@@ -12,13 +12,11 @@ import {
   PaperPlaneRight, Plus, Trash, PencilSimple, DownloadSimple, ChatCircleDots, Sparkle, Copy, Check, Globe, PlusCircle, X
 } from "@phosphor-icons/react";
 import GrexoLogo from "@/components/GrexoLogo";
-import { useBYOK } from "@/hooks/useBYOK";
 
 export default function ChatPage() {
   const { cid } = useParams();
   const navigate = useNavigate();
   const { user, refresh } = useAuth();
-  const { requireKey } = useBYOK();
   const [conversations, setConversations] = useState([]);
   const [current, setCurrent] = useState(null);
   const [input, setInput] = useState("");
@@ -104,49 +102,47 @@ useEffect(() => {
     }
   }, [current?.messages, sending, isAtBottom]);
   
-  const send = (e) => {
+  const send = async (e) => {
     e?.preventDefault();
-    requireKey(async () => {
-      const text = input.trim();
-      if ((!text && attachments.length === 0) || sending) return;
-      setInput("");
-      setSending(true);
+    const text = input.trim();
+    if ((!text && attachments.length === 0) || sending) return;
+    setInput("");
+    setSending(true);
 
-      const filesBase64 = await Promise.all(
-        attachments.map((file) => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve({ mime: file.type, data: reader.result.split(',')[1] });
-            reader.onerror = (error) => reject(error);
-          });
-        })
-      );
-      setAttachments([]);
+    const filesBase64 = await Promise.all(
+      attachments.map((file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve({ mime: file.type, data: reader.result.split(',')[1] });
+          reader.onerror = (error) => reject(error);
+        });
+      })
+    );
+    setAttachments([]);
 
-      // Optimistic add
-      const displayContent = text ? text : "[Attached Image]";
-      const optimistic = { role: "user", content: displayContent, ts: new Date().toISOString() };
-      setCurrent((c) => c ? { ...c, messages: [...(c.messages || []), optimistic] } : { id: null, messages: [optimistic], title: displayContent.slice(0, 60) });
-      try {
-        const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch, files: filesBase64 });
-        const newCid = r.data.conversation_id;
-        const aiMsg = { role: "assistant", content: r.data.reply, ts: new Date().toISOString() };
-        setCurrent((c) => ({ ...(c || {}), id: newCid, messages: [...(c?.messages || []), aiMsg] }));
-        if (!cid || cid !== newCid) {
-          navigate(`/dashboard/chat/${newCid}`, { replace: true });
-        }
-        loadConversations();
-        refresh();
-      } catch (err) {
-        const detail = err?.response?.data?.detail || "Failed to send";
-        toast.error(detail);
-        setCurrent((c) => c ? { ...c, messages: (c.messages || []).slice(0, -1) } : null);
-        setInput(text);
-      } finally {
-        setSending(false);
+    // Optimistic add
+    const displayContent = text ? text : "[Attached Image]";
+    const optimistic = { role: "user", content: displayContent, ts: new Date().toISOString() };
+    setCurrent((c) => c ? { ...c, messages: [...(c.messages || []), optimistic] } : { id: null, messages: [optimistic], title: displayContent.slice(0, 60) });
+    try {
+      const r = await api.post("/chat/send", { conversation_id: current?.id || null, message: text, tool: "chat", web_search: webSearch, files: filesBase64 });
+      const newCid = r.data.conversation_id;
+      const aiMsg = { role: "assistant", content: r.data.reply, ts: new Date().toISOString() };
+      setCurrent((c) => ({ ...(c || {}), id: newCid, messages: [...(c?.messages || []), aiMsg] }));
+      if (!cid || cid !== newCid) {
+        navigate(`/dashboard/chat/${newCid}`, { replace: true });
       }
-    });
+      loadConversations();
+      refresh();
+    } catch (err) {
+      const detail = err?.response?.data?.detail || "Failed to send";
+      toast.error(detail);
+      setCurrent((c) => c ? { ...c, messages: (c.messages || []).slice(0, -1) } : null);
+      setInput(text);
+    } finally {
+      setSending(false);
+    }
   };
 
   const newChat = () => {
