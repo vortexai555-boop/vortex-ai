@@ -285,30 +285,33 @@ class ProviderManager:
 
     @staticmethod
     async def execute_image(prompt: str, user_keys: Dict[str, Any], aspect_ratio: str = "1:1", default_provider: str = "google", system_fallback: bool = False) -> str:
-        provider_name = default_provider
-        api_key = user_keys.get(provider_name, {}).get("api_key")
-             
-        if api_key:
-             try:
-                 provider = ProviderFactory.get_provider(provider_name)
-                 res = await provider.generate_image(prompt, api_key, aspect_ratio)
-                 if res: return res
-             except NotImplementedError:
-                 logger.error(f"Image Provider {provider_name} does not support image generation.")
-                 # Continue to fallback
-             except Exception as e:
-                 logger.error(f"Image Provider {provider_name} failed: {e}")
-                 raise Exception(f"{provider_name} image generation failed: {e}")
-                 
-        # Fallback personal keys that support imaging
-        for p_name in ["openai", "google", "replicate"]:
-             if p_name != provider_name and user_keys.get(p_name, {}).get("api_key"):
-                 try:
-                     provider = ProviderFactory.get_provider(p_name)
-                     res = await provider.generate_image(prompt, user_keys[p_name]["api_key"], aspect_ratio)
-                     if res: return res
-                 except Exception:
-                     pass
-                 
-        raise Exception("MISSING_API_KEY")
+        import urllib.parse
+        import uuid
+        import httpx
+        import base64
+        
+        seed = uuid.uuid4().hex
+        
+        width, height = 1024, 1024
+        if aspect_ratio == "16:9":
+            width, height = 1024, 576
+        elif aspect_ratio == "9:16":
+            width, height = 576, 1024
+        elif aspect_ratio == "3:2":
+            width, height = 1024, 683
+        elif aspect_ratio == "2:3":
+            width, height = 683, 1024
+        elif aspect_ratio == "4:3":
+            width, height = 1024, 768
+        elif aspect_ratio == "3:4":
+            width, height = 768, 1024
+
+        encoded_prompt = urllib.parse.quote(prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            img_b64 = base64.b64encode(resp.content).decode('utf-8')
+            return f"data:image/jpeg;base64,{img_b64}"
 
