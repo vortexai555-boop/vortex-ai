@@ -6,7 +6,7 @@ import { AuthProvider } from "@/lib/auth";
 import { BYOKProvider } from "@/hooks/useBYOK";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import BYOKWizard from "@/components/BYOKWizard";
+import BYOKWizard from "@/components/BYOKWizard.jsx";
 
 const Landing = React.lazy(() => import("@/pages/Landing"));
 const Login = React.lazy(() => import("@/pages/Login"));
