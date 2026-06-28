@@ -385,8 +385,13 @@ from ai_providers import ProviderManager
 
 async def generate_text_free(messages: list, user_id: Optional[str] = None) -> str:
     try:
+        user_keys = {}
+        if user_id:
+            user = await db.users.find_one({"user_id": user_id})
+            if user and "api_keys" in user:
+                user_keys = user["api_keys"]
         return await ProviderManager.execute_text(
-            messages, {}, default_provider="google", system_fallback=True
+            messages, user_keys, default_provider="google", system_fallback=True
         )
     except Exception as e:
         logger.error(f"Text generation failed: {e}")
@@ -407,6 +412,11 @@ async def web_search(query: str):
 
 async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = None, user_id: str = None):
     try:
+        user_keys = {}
+        if user_id:
+            user = await db.users.find_one({"user_id": user_id})
+            if user and "api_keys" in user:
+                user_keys = user["api_keys"]
         # Handle files_data enhancement if needed
         final_prompt = prompt
         if files_data:
@@ -414,7 +424,7 @@ async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = N
             final_prompt = await generate_text_free([{"role": "user", "content": enhance_prompt}], user_id=user_id)
             
         b64 = await ProviderManager.execute_image(
-            final_prompt, {}, aspect_ratio, default_provider="google", system_fallback=True
+            final_prompt, user_keys, aspect_ratio, default_provider="google", system_fallback=True
         )
         if b64 and b64.startswith("data:"):
              return b64.split("base64,")[1]
@@ -998,23 +1008,20 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         import json
         import re
         
-        # Strip markdown if present
-        if out.strip().startswith("```"):
-            out = re.sub(r'^```(?:json)?(.*?)```$', r'\1', out.strip(), flags=re.DOTALL | re.IGNORECASE).strip()
+        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', out, re.DOTALL)
+        if match:
+            out = match.group(1).strip()
         else:
-            match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', out, re.DOTALL)
-            if match:
-                out = match.group(1).strip()
-            else:
-                # Fallback: extract the first outermost JSON object
-                start = out.find('{')
-                end = out.rfind('}')
-                if start != -1 and end != -1 and end > start:
-                    out = out[start:end+1]
+            # Fallback: extract the first outermost JSON object
+            start = out.find('{')
+            end = out.rfind('}')
+            if start != -1 and end != -1 and end > start:
+                out = out[start:end+1]
             
         try:
             parsed_files = json.loads(out)
         except json.JSONDecodeError:
+            logger.error(f"Failed to parse json, out: {out[:1000]}")
             raise ValueError("The generation model did not return a valid format.")
         
         if not isinstance(parsed_files, dict) or not parsed_files:
@@ -1184,15 +1191,21 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
         import json
         import re
         
-        # Strip markdown if present
-        if out.strip().startswith("```"):
-            out = re.sub(r'^```(?:json)?(.*?)```$', r'\1', out.strip(), flags=re.DOTALL | re.IGNORECASE).strip()
+        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', out, re.DOTALL)
+        if match:
+            out = match.group(1).strip()
         else:
-            match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', out, re.DOTALL)
-            if match:
-                out = match.group(1).strip()
+            # Fallback: extract the first outermost JSON object
+            start = out.find('{')
+            end = out.rfind('}')
+            if start != -1 and end != -1 and end > start:
+                out = out[start:end+1]
             
-        parsed_files = json.loads(out)
+        try:
+            parsed_files = json.loads(out)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse json in chat, out: {out[:1000]}")
+            raise ValueError("The generation model did not return a valid format.")
 
         if not isinstance(parsed_files, dict) or not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
