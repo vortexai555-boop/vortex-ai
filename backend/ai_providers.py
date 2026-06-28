@@ -71,36 +71,23 @@ class GeminiProvider(AIProvider):
     async def generate_image(self, prompt: str, api_key: str, aspect_ratio: str = "1:1") -> Optional[str]:
         client = genai.Client(api_key=api_key)
         
-        # Try passing config using types
         try:
-            config = types.GenerateContentConfig(
-                image_config=types.ImageConfig(aspect_ratio=aspect_ratio)
+            result = await client.aio.models.generate_images(
+                model='imagen-3.0-generate-001',
+                prompt=prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                    aspect_ratio=aspect_ratio,
+                    output_mime_type="image/jpeg"
+                )
             )
-        except Exception:
-            # fallback if ImageConfig is not found
-            config = types.GenerateContentConfig()
-
-        try:
-            result = await client.aio.models.generate_content(
-                model='gemini-3.1-flash-image', # <-- Update this line
-                contents=prompt,
-                config=config
-            )
+            for generated_image in result.generated_images:
+                b64 = base64.b64encode(generated_image.image.image_bytes).decode('utf-8')
+                return f"data:image/jpeg;base64,{b64}"
+            return None
         except Exception as e:
-            logger.error(f"First image gen attempt failed: {e}")
-            # Try without config if it failed
-            result = await client.aio.models.generate_content(
-                model='gemini-3.1-flash-image', # <-- Update this line
-                contents=f"{prompt} (Aspect Ratio: {aspect_ratio})"
-            )
-            
-        if result.candidates and result.candidates[0].content and result.candidates[0].content.parts:
-            for part in result.candidates[0].content.parts:
-                if hasattr(part, "inline_data") and part.inline_data:
-                    mime = getattr(part.inline_data, "mime_type", "image/jpeg")
-                    b64 = base64.b64encode(part.inline_data.data).decode('utf-8')
-                    return f"data:{mime};base64,{b64}"
-        return None
+            logger.error(f"Image gen attempt failed: {e}")
+            raise e
 
 
 class OpenAIProvider(AIProvider):
