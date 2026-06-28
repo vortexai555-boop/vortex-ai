@@ -29,4 +29,6 @@ duckduckgo-search
 openai
 google-generativeai
 google-genai
+json-repair
+google-genai
 psutil
