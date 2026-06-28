@@ -5,7 +5,7 @@ async function test() {
     try {
         console.log("Testing gemini-2.5-flash-image...");
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-image",
+            model: "gemini-3.1-flash-image", // <-- Update this line
             contents: "a cat",
             config: {
                 imageConfig: {
