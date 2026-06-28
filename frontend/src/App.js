@@ -3,8 +3,10 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth";
+import { BYOKProvider } from "@/hooks/useBYOK";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import BYOKWizard from "@/components/BYOKWizard";
 
 const Landing = React.lazy(() => import("@/pages/Landing"));
 const Login = React.lazy(() => import("@/pages/Login"));
@@ -108,10 +110,13 @@ export default function App() {
   return (
     <div className="App">
       <AuthProvider>
-        <BrowserRouter>
-          <AppRouter />
-          <Toaster theme="dark" position="top-right" />
-        </BrowserRouter>
+        <BYOKProvider>
+          <BrowserRouter>
+            <AppRouter />
+            <Toaster theme="dark" position="top-right" />
+            <BYOKWizard />
+          </BrowserRouter>
+        </BYOKProvider>
       </AuthProvider>
     </div>
   );
