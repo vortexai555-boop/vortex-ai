@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useBYOK } from "@/hooks/useBYOK";
-import { Key, ShieldCheck, CheckCircle2, Clock, Cpu, Trash, PencilSimple, Plug, X } from "lucide-react";
+import { Key, ShieldCheck, CheckCircle2, Clock, Cpu, Trash, Pencil, Plug, X } from "lucide-react";
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -135,7 +135,7 @@ export default function SettingsPage() {
 
                 <div className="mt-6 pt-6 border-t border-white/5 flex flex-wrap gap-3">
                   <Button onClick={() => setWizardOpen(true)} variant="outline" className="bg-white/5 hover:bg-white/10 border-white/10 gap-2">
-                    <PencilSimple className="w-4 h-4" /> Change Provider
+                    <Pencil className="w-4 h-4" /> Change Provider
                   </Button>
                   <Button onClick={handleTestKey} variant="outline" className="bg-white/5 hover:bg-white/10 border-white/10 gap-2">
                     <ShieldCheck className="w-4 h-4" /> Validate Connection
