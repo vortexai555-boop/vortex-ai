@@ -3,14 +3,12 @@ import api from "@/lib/api";
 import { toast } from "sonner";
 import WebsiteDashboard from "../components/website/WebsiteDashboard";
 import WebsiteEditor from "../components/website/WebsiteEditor";
-import { useBYOK } from "@/hooks/useBYOK";
 
 export default function WebsitePage() {
   const [viewState, setViewState] = useState("dashboard"); // 'dashboard' or 'editor'
   const [projects, setProjects] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const { requireKey } = useBYOK();
 
   useEffect(() => {
     fetchProjects();
@@ -25,8 +23,7 @@ export default function WebsitePage() {
     }
   };
 
-  const generate = (description) => {
-    requireKey(async () => {
+  const generate = async (description) => {
       setIsGenerating(true);
       try {
         const start = await api.post("/website/generate", { description, site_type: "landing", files: [] });
@@ -55,7 +52,6 @@ export default function WebsitePage() {
       } finally {
         setIsGenerating(false);
       }
-    });
   };
 
   const handleOpenProject = async (id) => {
@@ -99,8 +95,7 @@ export default function WebsitePage() {
     }
   };
 
-  const handleChat = (id, prompt) => {
-    requireKey(async () => {
+  const handleChat = async (id, prompt) => {
       try {
         const start = await api.post(`/website/${id}/chat`, { prompt });
         const jobId = start.data.job_id;
@@ -124,7 +119,6 @@ export default function WebsitePage() {
       } catch (err) {
         toast.error(err?.response?.data?.detail || err.message || "AI Edit failed");
       }
-    });
   };
 
   if (viewState === "dashboard") {
