@@ -1020,9 +1020,14 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             
         try:
             parsed_files = json.loads(out)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse json, out: {out[:1000]}")
-            raise ValueError("The generation model did not return a valid format.")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse json normally, attempting repair. Error: {e}")
+            try:
+                import json_repair
+                parsed_files = json_repair.loads(out)
+            except Exception as e2:
+                logger.error(f"Failed to repair json, error: {e2}")
+                raise ValueError("The generation model did not return a valid format.")
         
         if not isinstance(parsed_files, dict) or not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
@@ -1203,9 +1208,14 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
             
         try:
             parsed_files = json.loads(out)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse json in chat, out: {out[:1000]}")
-            raise ValueError("The generation model did not return a valid format.")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse json normally in chat, attempting repair. Error: {e}")
+            try:
+                import json_repair
+                parsed_files = json_repair.loads(out)
+            except Exception as e2:
+                logger.error(f"Failed to repair json in chat, error: {e2}")
+                raise ValueError("The generation model did not return a valid format.")
 
         if not isinstance(parsed_files, dict) or not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
