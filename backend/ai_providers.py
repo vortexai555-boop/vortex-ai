@@ -82,7 +82,7 @@ class GeminiProvider(AIProvider):
 
         try:
             result = await client.aio.models.generate_content(
-                model='gemini-2.5-flash-image',
+                model='gemini-3.1-flash-image', # <-- Update this line
                 contents=prompt,
                 config=config
             )
@@ -90,7 +90,7 @@ class GeminiProvider(AIProvider):
             logger.error(f"First image gen attempt failed: {e}")
             # Try without config if it failed
             result = await client.aio.models.generate_content(
-                model='gemini-2.5-flash-image',
+                model='gemini-3.1-flash-image', # <-- Update this line
                 contents=f"{prompt} (Aspect Ratio: {aspect_ratio})"
             )
             
