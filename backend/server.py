@@ -1005,8 +1005,17 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', out, re.DOTALL)
             if match:
                 out = match.group(1).strip()
+            else:
+                # Fallback: extract the first outermost JSON object
+                start = out.find('{')
+                end = out.rfind('}')
+                if start != -1 and end != -1 and end > start:
+                    out = out[start:end+1]
             
-        parsed_files = json.loads(out)
+        try:
+            parsed_files = json.loads(out)
+        except json.JSONDecodeError:
+            raise ValueError("The generation model did not return a valid format.")
         
         if not isinstance(parsed_files, dict) or not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
