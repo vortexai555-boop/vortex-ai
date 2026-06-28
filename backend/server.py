@@ -843,9 +843,10 @@ async def generate_image_api(request: Request, user=Depends(get_current_user)):
     full_prompt = f"{prompt}, {aspect_hint}"
 
     try:
-        results = await asyncio.gather(
-            *[gen_image(prompt, aspect_ratio, uploaded_files_data, user_id=user["user_id"]) for _ in range(count)]
-        )
+        results = []
+        for _ in range(count):
+            res = await gen_image(prompt, aspect_ratio, uploaded_files_data, user_id=user["user_id"])
+            results.append(res)
         logger.info("Results count: %d", len(results))
         logger.info("Valid images count: %d", len([r for r in results if r])) 
     except Exception as e:
