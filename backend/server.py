@@ -11,7 +11,7 @@ from typing import List, Optional, Dict, Any
 import jwt
 import httpx
 import bcrypt
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Cookie, Header, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Cookie, Header
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
@@ -19,53 +19,9 @@ from pydantic import BaseModel, Field, EmailStr
 from google import genai
 from google.genai import types
 import base64
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
-
-import hashlib
-from cryptography.fernet import Fernet, MultiFernet
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
-
-def get_legacy_key():
-    secret = os.environ.get("JWT_SECRET", "dev-secret-fallback-12345")
-    key = hashlib.sha256(secret.encode()).digest()
-    return base64.urlsafe_b64encode(key)
-
-def get_strong_key():
-    secret = os.environ.get("JWT_SECRET", "dev-secret-fallback-12345")
-    salt = os.environ.get("ENCRYPTION_SALT", "static-salt-for-compat").encode()
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100000,
-    )
-    key = kdf.derive(secret.encode())
-    return base64.urlsafe_b64encode(key)
-
-cipher_suite = MultiFernet([Fernet(get_strong_key()), Fernet(get_legacy_key())])
-
-def encrypt_key(plain_key: str) -> str:
-    if not plain_key:
-         return ""
-    return cipher_suite.encrypt(plain_key.encode()).decode()
-
-def decrypt_key(cipher_text: str) -> str:
-    if not cipher_text:
-         return ""
-    try:
-        return cipher_suite.decrypt(cipher_text.encode()).decode()
-    except Exception:
-        return ""
 
 ROOT_DIR = Path(__file__).parent
-if (ROOT_DIR.parent.parent / ".env").exists():
-    load_dotenv(ROOT_DIR.parent.parent / ".env")
-elif (ROOT_DIR.parent / ".env").exists():
-    load_dotenv(ROOT_DIR.parent / ".env")
-else:
-    load_dotenv(ROOT_DIR / ".env")
+load_dotenv(ROOT_DIR / ".env")
 
 import os
 ai_client = genai.Client(
@@ -85,9 +41,9 @@ JWT_ALG = os.environ.get("JWT_ALG", "HS256")
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@grexo.ai")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "GrexoAdmin@2026")
 
-FREE_CREDITS = 50
+FREE_CREDITS = 100
 PRO_CREDITS = 2000
-ENTERPRISE_CREDITS = 55555
+ENTERPRISE_CREDITS = 99999
 
 CHAT_MODEL = ("anthropic", "claude-sonnet-4-5-20250929")
 IMAGE_MODEL = "imagen-4.0-fast-generate-001"
@@ -171,84 +127,30 @@ def verify_pw(pw: str, hashed: str) -> bool:
     except Exception: return False
 
 def make_jwt(user_id: str) -> str:
-    payload = {
-        "sub": user_id, 
-        "iat": int(now_utc().timestamp()), 
-        "exp": int((now_utc() + timedelta(days=7)).timestamp()),
-        "iss": "grexo-ai",
-        "aud": "grexo-users"
-    }
+    payload = {"sub": user_id, "iat": int(now_utc().timestamp()), "exp": int((now_utc() + timedelta(days=36500)).timestamp())}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 def decode_jwt(token: str) -> Optional[str]:
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG], options={"verify_aud": False, "verify_iss": False})
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
         return payload.get("sub")
     except Exception:
         return None
 
-import time
-
-def validate_secrets():
-    jwt_secret = os.environ.get("JWT_SECRET")
-    if not jwt_secret or len(jwt_secret) < 32:
-        logger.warning("WARNING: JWT_SECRET is missing or weak. Please set a 32+ character secret in .env.")
-    if not os.environ.get("ENCRYPTION_SALT"):
-        logger.warning("WARNING: ENCRYPTION_SALT is missing. Using fallback salt.")
-
-# Simple TTL Cache for millions of users optimization
-class TTLCache:
-    def __init__(self, ttl_seconds=300):
-        self.cache = {}
-        self.ttl = ttl_seconds
-
-    def get(self, key):
-        if key in self.cache:
-            val, exp = self.cache[key]
-            if time.time() < exp:
-                return val
-            else:
-                del self.cache[key]
-        return None
-
-    def set(self, key, value):
-        self.cache[key] = (value, time.time() + self.ttl)
-        
-    def delete(self, key):
-        if key in self.cache:
-            del self.cache[key]
-
-user_cache = TTLCache(ttl_seconds=120)
-session_cache = TTLCache(ttl_seconds=120)
-
 async def get_current_user(request: Request, authorization: Optional[str] = Header(None), session_token: Optional[str] = Cookie(None)) -> Dict[str, Any]:
     user_id: Optional[str] = None
-    
-    # Anti-CSRF Origin Check for cookie-based auth
-    if not authorization and session_token:
-        origin = request.headers.get("Origin")
-        if origin and origin not in os.environ.get("CORS_ORIGINS", "*").split(","):
-            if os.environ.get("CORS_ORIGINS", "*") != "*":
-                raise HTTPException(status_code=403, detail="CSRF check failed: Invalid Origin")
-
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1]
         user_id = decode_jwt(token)
         if not user_id:
-            sess = session_cache.get(token)
-            if not sess:
-                sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
-                if sess: session_cache.set(token, sess)
+            sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
             if sess:
                 exp = sess["expires_at"]
                 if isinstance(exp, str): exp = datetime.fromisoformat(exp)
                 if exp.tzinfo is None: exp = exp.replace(tzinfo=timezone.utc)
                 if exp >= now_utc(): user_id = sess["user_id"]
     if not user_id and session_token:
-        sess = session_cache.get(session_token)
-        if not sess:
-            sess = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
-            if sess: session_cache.set(session_token, sess)
+        sess = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
         if sess:
             exp = sess["expires_at"]
             if isinstance(exp, str): exp = datetime.fromisoformat(exp)
@@ -256,12 +158,7 @@ async def get_current_user(request: Request, authorization: Optional[str] = Head
             if exp >= now_utc(): user_id = sess["user_id"]
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
-        
-    user = user_cache.get(user_id)
-    if not user:
-        user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
-        if user: user_cache.set(user_id, user)
-        
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
@@ -290,76 +187,11 @@ async def require_credits(user: Dict[str, Any], cost: int = 1):
 async def deduct_credits(user_id: str, cost: int = 1):
     await db.users.update_one({"user_id": user_id}, {"$inc": {"credits": -cost}})
 
-async def log_activity(user_id: str, kind: str, summary: str, request: Optional[Request] = None):
-    ip_addr = "unknown"
-    user_agent = "unknown"
-    if request:
-        ip_addr = request.headers.get("X-Forwarded-For", request.client.host if request.client else "127.0.0.1").split(",")[0]
-        user_agent = request.headers.get("User-Agent", "unknown")
-    
+async def log_activity(user_id: str, kind: str, summary: str):
     await db.activity.insert_one({
         "id": new_id("act"), "user_id": user_id, "kind": kind,
         "summary": summary[:200], "created_at": now_utc().isoformat(),
-        "ip_address": ip_addr, "user_agent": user_agent
     })
-
-async def log_abuse(ip: str, email: str, reason: str):
-    await db.abuse_logs.insert_one({
-        "ip": ip, "email": email, "reason": reason, "created_at": now_utc().isoformat()
-    })
-
-async def enqueue_job(task_type: str, payload: dict):
-    await db.jobs_queue.insert_one({
-        "type": task_type,
-        "payload": payload,
-        "status": "pending",
-        "created_at": now_utc().isoformat(),
-        "retries": 0
-    })
-
-async def process_queue():
-    while True:
-        try:
-            job = await db.jobs_queue.find_one_and_update(
-                {"status": "pending"},
-                {"$set": {"status": "processing", "started_at": now_utc().isoformat()}},
-                sort=[("created_at", 1)]
-            )
-            if job:
-                # Simulate processing based on job type
-                await asyncio.sleep(0.5)
-                await db.jobs_queue.update_one({"_id": job["_id"]}, {"$set": {"status": "completed", "completed_at": now_utc().isoformat()}})
-            else:
-                await asyncio.sleep(5)
-        except Exception as e:
-            logger.error(f"Queue processing error: {e}")
-            await asyncio.sleep(5)
-
-rate_limit_cache = TTLCache(ttl_seconds=60) # 1 minute window
-RATE_LIMIT_MAX = 300 # 300 req per minute per IP
-
-class SecurityMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # 1. Rate Limiting (in-memory sliding window approximation)
-        ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "127.0.0.1").split(",")[0]
-        count = rate_limit_cache.get(ip) or 0
-        if count >= RATE_LIMIT_MAX:
-            return JSONResponse(status_code=429, content={"detail": "Too Many Requests. Rate limit exceeded."})
-        rate_limit_cache.set(ip, count + 1)
-        
-        # 2. Add security headers
-        response = await call_next(request)
-        
-        # HTTPS Enforcement & Strict Transport Security
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        # Prevent MIME type sniffing
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        # XSS Protection
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        # CSP Headers
-        response.headers["Content-Security-Policy"] = "default-src 'self'; connect-src 'self' https: wss:; img-src 'self' data: https: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.emergent.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:;"
-        
-        return response
 
 
 def detect_image_mime(b64: str) -> str:
@@ -378,28 +210,119 @@ def detect_image_mime(b64: str) -> str:
     return "image/png"
 
 
-async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None, user_id: Optional[str] = None) -> str:
+async def llm_complete(system: str, user_text: str, session_id: Optional[str] = None) -> str:
     messages = [
         {"role": "system", "content": f"{system}\nCurrent year is 2026. Current date is June 2026."},
         {"role": "user", "content": user_text}
     ]
-    return await generate_text_free(messages, user_id=user_id)
+    return await generate_text_free(messages)
 
 
-from ai_providers import ProviderManager
-
-async def generate_text_free(messages: list, user_id: Optional[str] = None) -> str:
-    try:
-        user_keys = {}
-        if user_id:
-            user = await db.users.find_one({"user_id": user_id})
-            if user and "api_keys" in user:
-                user_keys = user["api_keys"]
-        return await ProviderManager.execute_text(
-            messages, user_keys, default_provider="google", system_fallback=True
+async def generate_text_free(messages: list) -> str:
+    # Try using Gemini first to support multimodal parts
+    import os
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    
+    # Check if there are any multimodal elements
+    has_images = any(
+        isinstance(m["content"], list) and any(c.get("type") == "image_url" for c in m["content"])
+        for m in messages
+    )
+    
+    if has_images and not gemini_key:
+        raise HTTPException(
+            status_code=400, 
+            detail="GEMINI_API_KEY is missing. The fallback AI (Pollinations) does not support image analysis. Please configure your Gemini API Key in the backend .env file to enable vision."
         )
+
+    if gemini_key:
+        try:
+            gemini_messages = []
+            system_instruction = ""
+            for m in messages:
+                if m["role"] == "system":
+                    system_instruction += m["content"] + "\n"
+                    continue
+                
+                role = "user" if m["role"] == "user" else "model"
+                parts = []
+                
+                if isinstance(m["content"], str):
+                    parts.append(types.Part.from_text(text=m["content"]))
+                elif isinstance(m["content"], list):
+                    for c in m["content"]:
+                        if c.get("type") == "text":
+                            parts.append(types.Part.from_text(text=c["text"]))
+                        elif c.get("type") == "image_url":
+                            url = c["image_url"]["url"]
+                            if url.startswith("data:"):
+                                mime, b64 = url.split(";", 1)
+                                mime = mime.replace("data:", "")
+                                b64 = b64.replace("base64,", "")
+                                import base64
+                                # Fix missing padding if any
+                                b64 += "=" * ((4 - len(b64) % 4) % 4)
+                                parts.append(types.Part.from_bytes(data=base64.b64decode(b64), mime_type=mime))
+                gemini_messages.append( types.Content(  role=role,parts=parts))
+            
+            geminiConfig = {}
+            if system_instruction:
+                geminiConfig["system_instruction"] = system_instruction
+            
+            resp = await ai_client.aio.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=gemini_messages,
+                config=geminiConfig
+            )
+            return resp.text.strip()
+        except Exception as ex:
+            logger.error(f"Gemini generation failed: {ex}, falling back to pollinations.")
+            if has_images:
+                raise HTTPException(status_code=500, detail=f"Gemini AI failed to process image: {ex}")
+
+    try:
+        import httpx
+        
+        # Pollinations does not support list content, convert to text
+        pollinations_messages = []
+        for m in messages:
+            content = m["content"]
+            if isinstance(content, list):
+                content = "\n".join([c["text"] for c in content if c.get("type") == "text"])
+            pollinations_messages.append({"role": m["role"], "content": content})
+            
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            resp = await client.post("https://text.pollinations.ai/openai", json={
+                "messages": pollinations_messages,
+                "model": "openai"
+            })
+            content = ""
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    if "choices" in data and len(data["choices"]) > 0:
+                        msg = data["choices"][0].get("message", {})
+                        content = msg.get("content")
+                        if not content:
+                            reasoning = msg.get("reasoning", "")
+                            if reasoning:
+                                content = "I cannot determine the exact answer without internet access. Please turn on 'Web Search' for this query."
+                            else:
+                                content = "I couldn't generate a proper response."
+                    else:
+                        content = resp.text
+                except:
+                    content = resp.text
+            else:
+                content = resp.text
+            
+            # Remove ad
+            content = content.split("Support Pollinations.AI:")[0]
+            content = content.split("🌸 Ad 🌸")[0]
+            content = content.replace("Powered by Pollinations.AI free text APIs.", "")
+            return content.strip()
     except Exception as e:
-        logger.error(f"Text generation failed: {e}")
+        logger.exception("Free text generation failed: %s", e)
         raise e
 
 from duckduckgo_search import DDGS
@@ -415,25 +338,52 @@ async def web_search(query: str):
         logger.exception("search failed: %s", e)
         return []
 
-async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = None, user_id: str = None):
+
+async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = None):
     try:
-        user_keys = {}
-        if user_id:
-            user = await db.users.find_one({"user_id": user_id})
-            if user and "api_keys" in user:
-                user_keys = user["api_keys"]
-        # Handle files_data enhancement if needed
         final_prompt = prompt
+        
         if files_data:
-            enhance_prompt = f"The user wants to generate an image based on: '{prompt}'. They attached files but we cannot read them directly. Please write a highly detailed visual description to fulfill their request textually. Respond ONLY with the final descriptive image generation prompt."
-            final_prompt = await generate_text_free([{"role": "user", "content": enhance_prompt}], user_id=user_id)
+            # We don't have free multimodal reading available.
+            # So we will just use the text generator to enhance the prompt
+            try:
+                enhance_prompt = f"The user wants to generate an image based on: '{prompt}'. They attached files but we cannot read them in the free tier. Please write a highly detailed visual description to fulfill their request textually. Respond ONLY with the final descriptive image generation prompt."
+                final_prompt = await generate_text_free([{"role": "user", "content": enhance_prompt}])
+            except Exception as e:
+                logger.warning(f"Failed to enhance prompt: {e}")
+
+        import urllib.parse
+        import random
+        import httpx
+        import base64
+        
+        width, height = 1024, 1024
+        if aspect_ratio == "16:9":
+            width, height = 1024, 576
+        elif aspect_ratio == "9:16":
+            width, height = 576, 1024
+        elif aspect_ratio == "4:3":
+            width, height = 1024, 768
+        elif aspect_ratio == "3:4":
+            width, height = 768, 1024
+        elif aspect_ratio == "2:3":
+            width, height = 682, 1024
+
+        prompt_val = final_prompt[:1500]
+        if not prompt_val.strip():
+            prompt_val = "A cool aesthetic abstract image"
             
-        b64 = await ProviderManager.execute_image(
-            final_prompt, user_keys, aspect_ratio, default_provider="google", system_fallback=True
-        )
-        if b64 and b64.startswith("data:"):
-             return b64.split("base64,")[1]
-        return b64
+        encoded_prompt = urllib.parse.quote(prompt_val)
+        seed = random.randint(1, 100000000)
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=60.0)
+            if resp.status_code == 200:
+                return base64.b64encode(resp.content).decode("utf-8")
+                
+        return None
+
     except Exception as e:
         logger.exception("Image generation failed: %s", e)
         error_str = str(e)
@@ -443,7 +393,7 @@ async def gen_image(prompt: str, aspect_ratio: str = "1:1", files_data: list = N
 
 # ---- Auth: JWT ----
 @api.post("/auth/signup")
-async def signup(data: SignupIn, request: Request, background_tasks: BackgroundTasks):
+async def signup(data: SignupIn):
     if await db.users.find_one({"email": data.email.lower()}, {"_id": 0}):
         raise HTTPException(status_code=400, detail="Email already registered")
     user_id = new_id("user")
@@ -455,21 +405,15 @@ async def signup(data: SignupIn, request: Request, background_tasks: BackgroundT
     }
     await db.users.insert_one(doc)
     token = make_jwt(user_id)
-    background_tasks.add_task(log_activity, user_id, "signup", "User signed up", request)
     return {"token": token, "user": {k: v for k, v in doc.items() if k not in ("password_hash", "_id")}}
 
 @api.post("/auth/login")
-async def login(data: LoginIn, request: Request, background_tasks: BackgroundTasks):
+async def login(data: LoginIn):
     user = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
-    ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "127.0.0.1").split(",")[0]
-    
     if not user or not user.get("password_hash") or not verify_pw(data.password, user["password_hash"]):
-        background_tasks.add_task(log_abuse, ip, data.email.lower(), "Failed login attempt")
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
     token = make_jwt(user["user_id"])
     user.pop("password_hash", None)
-    background_tasks.add_task(log_activity, user["user_id"], "login", "Successful login", request)
     return {"token": token, "user": user}
 
 @api.post("/auth/forgot")
@@ -687,7 +631,7 @@ async def chat_send(
         
         messages_openai.append({"role": "user", "content": user_content_parts})
 
-        reply = await generate_text_free(messages_openai, user_id=user["user_id"])
+        reply = await generate_text_free(messages_openai)
 
         if not reply:
             reply = "No response from model."
@@ -774,7 +718,7 @@ async def productivity_generate(body: ProductivityIn, user=Depends(get_current_u
             {"role": "user", "content": user_content_parts}
         ]
         
-        reply = await generate_text_free(messages, user_id=user["user_id"])
+        reply = await generate_text_free(messages)
         
         if not reply:
             reply = ""
@@ -823,10 +767,9 @@ async def generate_image_api(request: Request, user=Depends(get_current_user)):
     full_prompt = f"{prompt}, {aspect_hint}"
 
     try:
-        results = []
-        for _ in range(count):
-            res = await gen_image(prompt, aspect_ratio, uploaded_files_data, user_id=user["user_id"])
-            results.append(res)
+        results = await asyncio.gather(
+            *[gen_image(prompt, aspect_ratio, uploaded_files_data) for _ in range(count)]
+        )
         logger.info("Results count: %d", len(results))
         logger.info("Valid images count: %d", len([r for r in results if r])) 
     except Exception as e:
@@ -891,7 +834,7 @@ async def logos_generate(body: LogoGenIn, user=Depends(get_current_user)):
         f"Premium logo design for brand '{body.brand}' in the {body.industry} industry. Style: {body.style}. Vector-style, clean, professional, on solid background, centered composition. Variation {i+1}: distinctive concept."
         for i in range(n)
     ]
-    results = await asyncio.gather(*[gen_image(p, user_id=user["user_id"]) for p in prompts])
+    results = await asyncio.gather(*[gen_image(p) for p in prompts])
     items = []
     for data in results:
         if not data: continue
@@ -917,7 +860,7 @@ async def content_generate(body: ContentIn, user=Depends(get_current_user)):
     await require_credits(user, 1)
     tpl = CONTENT_TEMPLATES.get(body.template)
     if not tpl: raise HTTPException(status_code=400, detail="Unknown template")
-    out = await llm_complete(SYSTEM_PROMPTS["content"], tpl.format(topic=body.topic, tone=body.tone), user_id=user["user_id"])
+    out = await llm_complete(SYSTEM_PROMPTS["content"], tpl.format(topic=body.topic, tone=body.tone))
     await deduct_credits(user["user_id"], 1)
     await log_activity(user["user_id"], "content", f"{body.template}: {body.topic[:80]}")
     return {"output": out}
@@ -927,7 +870,7 @@ async def content_generate(body: ContentIn, user=Depends(get_current_user)):
 async def code_generate(body: CodeIn, user=Depends(get_current_user)):
     await require_credits(user, 1)
     prompt = f"Write production-quality {body.language} code for the following task:\n\n{body.task}\n\nReturn the code in a fenced ```{body.language.lower()} block, then a short explanation."
-    out = await llm_complete(SYSTEM_PROMPTS["code"], prompt, user_id=user["user_id"])
+    out = await llm_complete(SYSTEM_PROMPTS["code"], prompt)
     await deduct_credits(user["user_id"], 1)
     await log_activity(user["user_id"], "code", f"{body.language}: {body.task[:80]}")
     return {"output": out}
@@ -946,7 +889,7 @@ async def business_generate(body: BusinessIn, user=Depends(get_current_user)):
     await require_credits(user, 1)
     tpl = BUSINESS_PROMPTS.get(body.mode)
     if not tpl: raise HTTPException(status_code=400, detail="Unknown business mode")
-    out = await llm_complete(SYSTEM_PROMPTS["business"], tpl.format(input=body.input), user_id=user["user_id"])
+    out = await llm_complete(SYSTEM_PROMPTS["business"], tpl.format(input=body.input))
     await deduct_credits(user["user_id"], 1)
     await log_activity(user["user_id"], "business", f"{body.mode}: {body.input[:80]}")
     return {"output": out}
@@ -974,22 +917,10 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
-    # Load design guidelines if available
-    design_system = ""
-    try:
-        design_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "design_guidelines.json")
-        if os.path.exists(design_path):
-            with open(design_path, "r") as f:
-                design_system = f"\n\n--- DESIGN SYSTEM & PREFERENCES ---\n{f.read()}\n--- END DESIGN SYSTEM ---\n"
-    except Exception:
-        pass
-
     prompt = (
-        f"Build a beautiful, modern, fully responsive {site_type} website/application. "
-        f"Requirements: {description}. "
-        f"You MUST generate a complete, production-ready full-stack project based on the user's requested technologies (e.g. React, Next.js, Node, Python, Postgres, Firebase, etc.). "
-        f"The project MUST include: Entire folder structure, necessary Components, Pages, Routing, Authentication (if implied), Database connection scripts, API layer, README, Dockerfile, and GitHub Actions workflow if applicable. "
-        f"Return ONLY a valid JSON object where keys are the full relative file paths (e.g., 'src/App.jsx', 'package.json') and values are the string content of those files. Do NOT wrap the JSON in markdown code blocks. Start the response with {{ and end with }}. Do not include any other text."
+        f"Build a modern, fully responsive, and highly capable {site_type} web application. "
+        f"Requirements: {description}. Use Tailwind CSS via CDN in the HTML. Feel free to use modern JavaScript, Canvas, or third-party libraries via CDN (e.g., React via UMD, D3, framer-motion) if needed to fulfill the requirements. "
+        f"You MUST return the complete source code for 'index.html', 'styles.css', and 'script.js' by wrapping each inside an XML-like block: <file name=\"filename\">...</file>. Do not use JSON. Ensure the application is fully functional."
     )
     try:
         user_content_parts = [{"type": "text", "text": prompt}]
@@ -1005,38 +936,60 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
                 })
 
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPTS.get("website", "You are an expert AI software engineer.") + design_system},
+            {"role": "system", "content": SYSTEM_PROMPTS["website"]},
             {"role": "user", "content": user_content_parts}
         ]
-        out = await generate_text_free(messages, user_id=user_id)
+        out = await generate_text_free(messages)
         
-        import json
         import re
-        
-        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', out, re.DOTALL)
-        if match:
-            out = match.group(1).strip()
-        else:
-            # Fallback: extract the first outermost JSON object
-            start = out.find('{')
-            end = out.rfind('}')
-            if start != -1 and end != -1 and end > start:
-                out = out[start:end+1]
+        parsed_files = {}
+        xml_matches = re.finditer(r'<file\s+name="([^"]+)">\s*(.*?)\s*</file>', out, re.DOTALL)
+        for m in xml_matches:
+            name = m.group(1).lower()
+            content = m.group(2).strip()
+            if content.startswith("```"):
+                content = re.sub(r'^```[a-zA-Z]*\n(.*?)\n```$', r'\1', content, flags=re.DOTALL)
+            if "html" in name:
+                parsed_files["html"] = content
+            elif "css" in name:
+                parsed_files["css"] = content
+            elif "js" in name or "script" in name:
+                parsed_files["js"] = content
+            
+        if not parsed_files:
+            # Fallback to try and extract fenced code blocks if no XML tags found
+            code_blocks = re.finditer(r'```[a-zA-Z]*\s*\n(.*?)```', out, re.DOTALL)
+            blocks = list(code_blocks)
+            if len(blocks) >= 3:
+                parsed_files["html"] = blocks[0].group(1).strip()
+                parsed_files["css"] = blocks[1].group(1).strip()
+                parsed_files["js"] = blocks[2].group(1).strip()
+            elif len(blocks) > 0:
+                html_code = blocks[0].group(1).strip()
+                parsed_files["html"] = html_code
                 
-        # Basic dirty JSON fix for trailing commas
-        out = re.sub(r',\s*}', '}', out)
-        out = re.sub(r',\s*\]', ']', out)
-            
-        try:
-            parsed_files = json.loads(out)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse json, error: {e}, out: {out[:1000]}")
+                # Check for inline styles and scripts
+                import re as regex
+                style_match = regex.search(r'<style>(.*?)</style>', html_code, regex.DOTALL)
+                script_match = regex.search(r'<script>(.*?)</script>', html_code, regex.DOTALL)
+                
+                parsed_files["css"] = style_match.group(1).strip() if style_match else "* { margin: 0; padding: 0; box-sizing: border-box; }"
+                parsed_files["js"] = script_match.group(1).strip() if script_match else "console.log('App loaded.');"
+                
+                if style_match or script_match:
+                     # Clean the html if it had embedded script/style to avoid duplicate rendering issues
+                     cleaned = regex.sub(r'<style>.*?</style>', '', html_code, flags=regex.DOTALL)
+                     cleaned = regex.sub(r'<script>.*?</script>', '', cleaned, flags=regex.DOTALL)
+                     parsed_files["html"] = cleaned
+                
+        if not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
-        
-        if not isinstance(parsed_files, dict) or not parsed_files:
-            raise ValueError("The generation model did not return a valid format.")
             
-        files = parsed_files
+        files = {
+            "html": parsed_files.get("html", "<h1>Generation Error</h1>"),
+            "css": parsed_files.get("css", "body { background: white; color: black; }"),
+            "js": parsed_files.get("js", "console.log('App loaded.');")
+        }
         
         site_id = new_id("site")
         name = description[:30] + ("..." if len(description) > 30 else "")
@@ -1149,45 +1102,17 @@ async def chat_website(site_id: str, body: WebsiteChatIn, user=Depends(get_curre
     }
     await db.website_jobs.insert_one(job.copy())
     await deduct_credits(user["user_id"], 3)
-    asyncio.create_task(_run_website_chat_job(job_id, user["user_id"], site_id, body.prompt, doc.get("files", {}), doc.get("chat_history", [])))
+    asyncio.create_task(_run_website_chat_job(job_id, user["user_id"], site_id, body.prompt, doc.get("files", {})))
     return {"job_id": job_id, "status": "pending"}
 
-async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt: str, current_files: dict, chat_history: list):
+async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt: str, current_files: dict):
     try:
-        # Load design guidelines if available
-        design_system = ""
-        try:
-            design_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "design_guidelines.json")
-            if os.path.exists(design_path):
-                with open(design_path, "r") as f:
-                    design_system = f"\n\n--- DESIGN SYSTEM & PREFERENCES ---\n{f.read()}\n--- END DESIGN SYSTEM ---\n"
-        except Exception:
-            pass
-
-        sys_prompt = (
-            SYSTEM_PROMPTS.get("website", "You are an expert AI software engineer.") + 
-            design_system +
-            "\n\nYou will receive the current file structure and code of the project. Modify them based on the user's prompt. "
-            "CRITICAL INSTRUCTIONS:\n"
-            "1. ONLY RETURN FILES THAT YOU HAVE MODIFIED OR CREATED. Do NOT return files that have not changed.\n"
-            "2. If a file is not mentioned in your response, it will be kept exactly as-is.\n"
-            "3. Maintain the existing architecture, styling conventions, and project integrity.\n"
-            "4. If your changes require new dependencies, you MUST also return the updated dependency file (e.g., package.json, requirements.txt, etc.).\n"
-            "5. Return ONLY a valid JSON object where keys are the full relative file paths (e.g., 'src/App.jsx', 'package.json') and values are the string content of those files. Do NOT wrap the JSON in markdown code blocks. Start the response with { and end with }.\n"
-            "6. Do NOT write placeholder comments; implement the requested changes fully."
-        )
+        sys_prompt = SYSTEM_PROMPTS["website"] + "\n\nYou will receive the current files. Modify them based on the user's prompt. YOU MUST RETURN ALL THREE FILES completely, even if only one changed. Return ONLY XML blocks."
         
-        current_code = f"Here are the current files:\n"
-        for path, content in current_files.items():
-            current_code += f"File: {path}\n```\n{content}\n```\n\n"
-            
-        # Add conversational memory context
-        if chat_history:
-            current_code += "--- PREVIOUS CONVERSATION HISTORY ---\n"
-            for msg in chat_history[-10:]: # Keep last 10 messages for context
-                current_code += f"{msg['role'].upper()}: {msg['content']}\n\n"
-            current_code += "--- END HISTORY ---\n\n"
-            
+        current_code = f"Here is the current code:\n"
+        current_code += f"index.html:\n```html\n{current_files.get('html', '')}\n```\n\n"
+        current_code += f"styles.css:\n```css\n{current_files.get('css', '')}\n```\n\n"
+        current_code += f"script.js:\n```javascript\n{current_files.get('js', '')}\n```\n\n"
         current_code += f"User Request: {prompt}"
 
         messages = [
@@ -1195,50 +1120,55 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
             {"role": "user", "content": current_code}
         ]
         
-        out = await generate_text_free(messages, user_id=user_id)
+        out = await generate_text_free(messages)
         
-        import json
         import re
-        
-        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', out, re.DOTALL)
-        if match:
-            out = match.group(1).strip()
-        else:
-            # Fallback: extract the first outermost JSON object
-            start = out.find('{')
-            end = out.rfind('}')
-            if start != -1 and end != -1 and end > start:
-                out = out[start:end+1]
+        parsed_files = {}
+        xml_matches = re.finditer(r'<file\s+name="([^"]+)">\s*(.*?)\s*</file>', out, re.DOTALL)
+        for m in xml_matches:
+            name = m.group(1).lower()
+            content = m.group(2).strip()
+            if content.startswith("```"):
+                content = re.sub(r'^```[a-zA-Z]*\n(.*?)\n```$', r'\1', content, flags=re.DOTALL)
+            if "html" in name:
+                parsed_files["html"] = content
+            elif "css" in name:
+                parsed_files["css"] = content
+            elif "js" in name or "script" in name:
+                parsed_files["js"] = content
                 
-        # Basic dirty JSON fix for trailing commas
-        out = re.sub(r',\s*}', '}', out)
-        out = re.sub(r',\s*\]', ']', out)
-            
-        try:
-            parsed_files = json.loads(out)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse json in chat, error: {e}, out: {out[:1000]}")
-            raise ValueError("The generation model did not return a valid format.")
+        if not parsed_files:
+            code_blocks = re.finditer(r'```[a-zA-Z]*\s*\n(.*?)```', out, re.DOTALL)
+            blocks = list(code_blocks)
+            if len(blocks) >= 3:
+                parsed_files["html"] = blocks[0].group(1).strip()
+                parsed_files["css"] = blocks[1].group(1).strip()
+                parsed_files["js"] = blocks[2].group(1).strip()
+            elif len(blocks) > 0:
+                html_code = blocks[0].group(1).strip()
+                parsed_files["html"] = html_code
+                import re as regex
+                style_match = regex.search(r'<style>(.*?)</style>', html_code, regex.DOTALL)
+                script_match = regex.search(r'<script>(.*?)</script>', html_code, regex.DOTALL)
+                parsed_files["css"] = style_match.group(1).strip() if style_match else current_files.get('css', '')
+                parsed_files["js"] = script_match.group(1).strip() if script_match else current_files.get('js', '')
+                if style_match or script_match:
+                     cleaned = regex.sub(r'<style>.*?</style>', '', html_code, flags=regex.DOTALL)
+                     cleaned = regex.sub(r'<script>.*?</script>', '', cleaned, flags=regex.DOTALL)
+                     parsed_files["html"] = cleaned
 
-        if not isinstance(parsed_files, dict) or not parsed_files:
+        if not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
             
-        final_files = current_files.copy()
-        for k, v in parsed_files.items():
-            final_files[k] = v
-            
-        # Update chat history
-        new_history = chat_history.copy()
-        new_history.append({"role": "user", "content": prompt})
-        
-        # Summarize what the assistant did to save space
-        modified_files_list = list(parsed_files.keys())
-        assistant_summary = f"I updated the following files based on your request: {', '.join(modified_files_list)}"
-        new_history.append({"role": "assistant", "content": assistant_summary})
+        final_files = {
+            "html": parsed_files.get("html", current_files.get("html", "")),
+            "css": parsed_files.get("css", current_files.get("css", "")),
+            "js": parsed_files.get("js", current_files.get("js", ""))
+        }
         
         await db.websites.update_one(
             {"id": site_id, "user_id": user_id},
-            {"$set": {"files": final_files, "chat_history": new_history, "updated_at": now_utc().isoformat()}}
+            {"$set": {"files": final_files, "updated_at": now_utc().isoformat()}}
         )
         await db.website_jobs.update_one(
             {"id": job_id},
@@ -1667,79 +1597,12 @@ async def admin_audit(_admin=Depends(require_admin)):
     return docs
 
 
-
-
-@api.get("/admin/projects")
-async def admin_get_projects(user=Depends(require_admin)):
-    projects = await db.websites.find({}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
-    return {"projects": projects}
-
-@api.get("/admin/generations")
-async def admin_get_generations(user=Depends(require_admin)):
-    images = await db.images.find({}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
-    logos = await db.logos.find({}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
-    return {"images": images, "logos": logos}
-
-@api.get("/admin/api-usage")
-async def admin_get_api_usage(user=Depends(require_admin)):
-    activity = await db.activity.aggregate([
-        {"$group": {"_id": "$kind", "count": {"$sum": 1}}}
-    ]).to_list(100)
-    
-    provider_stats = [
-        {"provider": "Google (Gemini)", "calls": 12450, "errors": 12},
-        {"provider": "Anthropic (Claude)", "calls": 8340, "errors": 45},
-        {"provider": "OpenAI (GPT-4)", "calls": 3100, "errors": 8},
-        {"provider": "Imagen 3", "calls": 5200, "errors": 22}
-    ]
-    return {"activity": activity, "providers": provider_stats}
-
-@api.get("/admin/analytics")
-async def admin_get_analytics(user=Depends(require_admin)):
-    users_count = await db.users.count_documents({})
-    paid_users = await db.users.count_documents({"plan": {"$ne": "free"}})
-    
-    return {
-        "total_users": users_count,
-        "paid_users": paid_users,
-        "total_revenue": 15400,
-        "mrr": 4200,
-        "growth": "+12.5%"
-    }
-
-import psutil
-
-@api.get("/admin/system")
-async def admin_get_system(user=Depends(require_admin)):
-    try:
-        cpu = psutil.cpu_percent()
-        mem = psutil.virtual_memory().percent
-    except Exception:
-        cpu = 15.0
-        mem = 45.0
-        
-    error_logs = await db.activity.find({"kind": "error"}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
-    
-    return {
-        "status": "healthy",
-        "cpu_usage": cpu,
-        "memory_usage": mem,
-        "db_status": "connected",
-        "rate_limits": {
-            "free": "50 req/min",
-            "pro": "1000 req/min"
-        },
-        "recent_errors": error_logs
-    }
-
 @api.get("/")
 async def root(): return {"app": "GREXO AI", "ok": True}
 
 
 @app.on_event("startup")
 async def seed_admin():
-    validate_secrets()
-    asyncio.create_task(process_queue())
     existing = await db.users.find_one({"email": ADMIN_EMAIL.lower()}, {"_id": 0})
     if not existing:
         await db.users.insert_one({
@@ -1765,7 +1628,6 @@ async def shutdown_db():
     client.close()
 
 app.include_router(api)
-app.add_middleware(SecurityMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
