@@ -980,11 +980,27 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
         if not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
             
-        files = parsed_files if parsed_files else {
-            "index.html": "<h1>Generation Error</h1>",
-            "styles.css": "body { background: white; color: black; }",
-            "script.js": "console.log('App loaded.');"
-        }
+        normalized_files = {}
+        for k, v in parsed_files.items():
+            k_lower = k.lower()
+            if "html" in k_lower:
+                normalized_files["index.html"] = v
+            elif "css" in k_lower or "style" in k_lower:
+                normalized_files["styles.css"] = v
+            elif "js" in k_lower or "script" in k_lower:
+                normalized_files["script.js"] = v
+            else:
+                normalized_files[k] = v
+
+        # Ensure we have the minimum required files
+        if "index.html" not in normalized_files:
+            normalized_files["index.html"] = "<h1>App generated, but index.html is missing.</h1>"
+        if "styles.css" not in normalized_files:
+            normalized_files["styles.css"] = ""
+        if "script.js" not in normalized_files:
+            normalized_files["script.js"] = ""
+
+        files = normalized_files
         
         site_id = new_id("site")
         name = description[:30] + ("..." if len(description) > 30 else "")
@@ -1149,9 +1165,21 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
 
         if not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
+
+        normalized_files = {}
+        for k, v in parsed_files.items():
+            k_lower = k.lower()
+            if "html" in k_lower:
+                normalized_files["index.html"] = v
+            elif "css" in k_lower or "style" in k_lower:
+                normalized_files["styles.css"] = v
+            elif "js" in k_lower or "script" in k_lower:
+                normalized_files["script.js"] = v
+            else:
+                normalized_files[k] = v
             
         final_files = current_files.copy()
-        final_files.update(parsed_files)
+        final_files.update(normalized_files)
         
         await db.websites.update_one(
             {"id": site_id, "user_id": user_id},
