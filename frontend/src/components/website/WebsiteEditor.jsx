@@ -10,8 +10,28 @@ import { saveAs } from "file-saver";
 import api from "@/lib/api";
 
 export default function WebsiteEditor({ project, onBack, onUpdateFiles, onChat }) {
-  const [activeFile, setActiveFile] = useState("index.html");
-  const [files, setFiles] = useState(project?.files || { "index.html": "", "styles.css": "", "script.js": "" });
+  // Migrate legacy keys if they exist
+  const migrateLegacyFiles = (legacyFiles) => {
+      if (!legacyFiles) return { "index.html": "", "styles.css": "", "script.js": "" };
+      const migrated = { ...legacyFiles };
+      if (migrated.html !== undefined && migrated["index.html"] === undefined) {
+          migrated["index.html"] = migrated.html;
+          delete migrated.html;
+      }
+      if (migrated.css !== undefined && migrated["styles.css"] === undefined) {
+          migrated["styles.css"] = migrated.css;
+          delete migrated.css;
+      }
+      if (migrated.js !== undefined && migrated["script.js"] === undefined) {
+          migrated["script.js"] = migrated.js;
+          delete migrated.js;
+      }
+      return migrated;
+  };
+
+  const initialFiles = migrateLegacyFiles(project?.files);
+  const [activeFile, setActiveFile] = useState(initialFiles["index.html"] !== undefined ? "index.html" : Object.keys(initialFiles)[0] || "index.html");
+  const [files, setFiles] = useState(initialFiles);
   const [isChatting, setIsChatting] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [viewMode, setViewMode] = useState("desktop");
@@ -36,20 +56,48 @@ export default function WebsiteEditor({ project, onBack, onUpdateFiles, onChat }
     const css = files["styles.css"] || files.css || "";
     const js = files["script.js"] || files.js || "";
 
-    const fullSrc = `
+    let fullSrc = html;
+    const htmlLower = html.toLowerCase();
+    
+    // Check if the html string already contains a full document
+    if (htmlLower.includes("<html") || htmlLower.includes("<!doctype html>")) {
+       // It's a full document, we need to inject CSS and JS
+       if (css) {
+           const safeCss = css.replace(/<\/style>/ig, ''); // Prevent style breakout
+           if (htmlLower.includes("</head>")) {
+               fullSrc = fullSrc.replace(/<\/head>/i, () => `<style>${safeCss}</style>\n</head>`);
+           } else {
+               fullSrc = `<style>${safeCss}</style>\n` + fullSrc;
+           }
+       }
+       if (js) {
+           const safeJs = js.replace(/<\/script>/ig, '<\\/script>');
+           if (htmlLower.includes("</body>")) {
+               fullSrc = fullSrc.replace(/<\/body>/i, () => `<script>${safeJs}<\/script>\n</body>`);
+           } else {
+               fullSrc = fullSrc + `\n<script>${safeJs}<\/script>`;
+           }
+       }
+    } else {
+      // It's just a fragment, wrap it
+      const safeCss = css.replace(/<\/style>/ig, '');
+      const safeJs = js.replace(/<\/script>/ig, '<\\/script>');
+      fullSrc = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>${css}</style>
+          <style>${safeCss}</style>
         </head>
         <body>
           ${html}
-          <script>${js}<\/script>
+          <script>${safeJs}<\/script>
         </body>
       </html>
-    `;
+      `;
+    }
+
     iframeRef.current.srcdoc = fullSrc;
   };
 
