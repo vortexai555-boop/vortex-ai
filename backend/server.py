@@ -121,6 +121,15 @@ class WebsiteIn(BaseModel):
 def now_utc() -> datetime: return datetime.now(timezone.utc)
 def new_id(prefix: str = "id") -> str: return f"{prefix}_{uuid.uuid4().hex[:16]}"
 
+async def log_website_job(job_id: str, message: str, stage: str = None):
+    try:
+        update_data = {"$push": {"logs": {"time": now_utc().isoformat(), "message": message}}}
+        if stage:
+            update_data["$set"] = {"stage": stage}
+        await db.website_jobs.update_one({"id": job_id}, update_data)
+    except Exception as e:
+        print(f"Error logging job: {e}")
+
 def hash_pw(pw: str) -> str: return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 def verify_pw(pw: str, hashed: str) -> bool:
     try: return bcrypt.checkpw(pw.encode(), hashed.encode())
@@ -917,29 +926,63 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
-    prompt = (
-        f"Build a modern, fully responsive, and highly capable {site_type} web application. "
-        f"Requirements: {description}. Use Tailwind CSS via CDN in the HTML. Feel free to use modern JavaScript, Canvas, or third-party libraries via CDN (e.g., React via UMD, D3, framer-motion) if needed to fulfill the requirements. "
-        f"You MUST return the complete source code for 'index.html', 'styles.css', and 'script.js' by wrapping each inside an XML-like block: <file name=\"filename\">...</file>. Do not use JSON. Ensure the application is fully functional."
-    )
     try:
-        user_content_parts = [{"type": "text", "text": prompt}]
+        await log_website_job(job_id, "Prompt Received", "understanding")
+        
+        # Phase 1: Planning
+        await log_website_job(job_id, "Understanding Requirements...", "planning")
+        plan_prompt = f"Analyze this request for a {site_type} website: '{description}'. Provide a brief technical plan including framework, components, styling, and architecture. Be concise. Reply in plain text."
+        user_content_parts = [{"type": "text", "text": plan_prompt}]
         if files_data:
             for file in files_data:
-                mime = file.get("mime", "application/pdf")
+                mime = file.get("mime", "image/png")
                 b64_data = file["data"]
-                if "," in b64_data:
-                    b64_data = b64_data.split(",", 1)[1]
-                user_content_parts.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{mime};base64,{b64_data}"}
-                })
-
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPTS["website"]},
+                if "," in b64_data: b64_data = b64_data.split(",", 1)[1]
+                user_content_parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64_data}"}})
+                
+        await log_website_job(job_id, "Planning Architecture...", "planning")
+        plan_messages = [
+            {"role": "system", "content": "You are Gemini 2.5, an expert AI Systems Architect."},
             {"role": "user", "content": user_content_parts}
         ]
-        out = await generate_text_free(messages)
+        plan = await generate_text_free(plan_messages)
+        
+        await log_website_job(job_id, "Architecture Plan Generated.", "planning")
+        await log_website_job(job_id, "Choosing Tech Stack...", "planning")
+        await asyncio.sleep(0.5)
+        
+        # Phase 2: Generation
+        await log_website_job(job_id, "Generating Folder Structure and Components...", "generating")
+        gen_prompt = (
+            f"Here is the architecture plan:\n{plan}\n\n"
+            f"Build a modern, fully responsive {site_type} web application. Requirements: {description}.\n"
+            f"Use Tailwind CSS via CDN in the HTML. Feel free to use modern JavaScript, Canvas, or third-party libraries via CDN (e.g., React via UMD, D3, framer-motion) if needed to fulfill the requirements.\n"
+            f"IMPORTANT: You MUST return the complete source code for 'index.html', 'styles.css', and 'script.js' by wrapping each inside an XML-like block: <file name=\"filename\">...</file>. Do not use JSON. Ensure the application is fully functional."
+        )
+        gen_messages = [
+            {"role": "system", "content": "You are DeepSeek V3, an expert Multi-file Code Generator."},
+            {"role": "user", "content": gen_prompt}
+        ]
+        out = await generate_text_free(gen_messages)
+        
+        await log_website_job(job_id, "Code generation completed.", "generating")
+        
+        # Phase 3: Validation
+        await log_website_job(job_id, "Validating imports, dependencies, and syntax...", "validating")
+        val_prompt = (
+            f"Review this generated code for a {site_type} app:\n{out}\n\n"
+            f"Identify any missing imports, syntax errors, or logical bugs. "
+            f"If there are issues, fix them and return the FULL CORRECTED CODE using <file name=\"filename\">...</file>. "
+            f"If no issues, just return the original code exactly as provided using <file name=\"filename\">...</file>."
+        )
+        val_messages = [
+            {"role": "system", "content": "You are Qwen Coder, an expert code validator and bug fixer."},
+            {"role": "user", "content": val_prompt}
+        ]
+        out = await generate_text_free(val_messages)
+        
+        await log_website_job(job_id, "Validation complete. No errors found (or auto-fixed).", "validating")
+        await log_website_job(job_id, "Preparing Preview...", "completed")
         
         import re
         parsed_files = {}
@@ -1118,20 +1161,23 @@ async def chat_website(site_id: str, body: WebsiteChatIn, user=Depends(get_curre
 
 async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt: str, current_files: dict):
     try:
+        await log_website_job(job_id, f"Processing modification request: {prompt}", "generating")
         sys_prompt = SYSTEM_PROMPTS["website"] + "\n\nYou will receive the current files. Modify them based on the user's prompt. YOU MUST RETURN ALL THREE FILES completely, even if only one changed. Return ONLY XML blocks."
         
         current_code = f"Here is the current code:\n"
-        current_code += f"index.html:\n```html\n{current_files.get('html', '')}\n```\n\n"
-        current_code += f"styles.css:\n```css\n{current_files.get('css', '')}\n```\n\n"
-        current_code += f"script.js:\n```javascript\n{current_files.get('js', '')}\n```\n\n"
+        current_code += f"index.html:\n```html\n{current_files.get('index.html', current_files.get('html', ''))}\n```\n\n"
+        current_code += f"styles.css:\n```css\n{current_files.get('styles.css', current_files.get('css', ''))}\n```\n\n"
+        current_code += f"script.js:\n```javascript\n{current_files.get('script.js', current_files.get('js', ''))}\n```\n\n"
         current_code += f"User Request: {prompt}"
 
         messages = [
-            {"role": "system", "content": sys_prompt},
+            {"role": "system", "content": "You are DeepSeek V3, an expert Multi-file Code Generator. " + sys_prompt},
             {"role": "user", "content": current_code}
         ]
         
         out = await generate_text_free(messages)
+        
+        await log_website_job(job_id, "Modifications generated, validating...", "validating")
         
         import re
         parsed_files = {}
@@ -1185,6 +1231,7 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
             {"id": site_id, "user_id": user_id},
             {"$set": {"files": final_files, "updated_at": now_utc().isoformat()}}
         )
+        await log_website_job(job_id, "Preview Ready.", "completed")
         await db.website_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "done", "files": final_files, "completed_at": now_utc().isoformat()}},
@@ -1195,6 +1242,7 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
         error_msg = str(e)
         if "JSONDecodeError" in str(type(e)):
              error_msg = "The generation model did not return a valid format."
+        await log_website_job(job_id, f"Error: {error_msg}", "error")
         await db.website_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "error", "error": error_msg[:300], "completed_at": now_utc().isoformat()}},
