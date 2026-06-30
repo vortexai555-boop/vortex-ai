@@ -496,7 +496,7 @@ SYSTEM_PROMPTS = {
     "code": "You are GREXO Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
     "content": "You are GREXO Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
     "business": "You are GREXO Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
-    "website": 'You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output the exact code files inside <file name="...">...</file> XML blocks. ONLY output the XML blocks. Include index.html, styles.css, and script.js. Do NOT wrap the XML blocks in markdown code blocks.',
+    "website": 'You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output the exact code files inside <file name="index.html">...</file> XML blocks (using the correct filename). ONLY output the XML blocks. Include index.html, styles.css, and script.js. Do NOT wrap the XML blocks in markdown code blocks.',
     "calculator": "Calculator"
 }
 
@@ -957,7 +957,7 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             f"Here is the architecture plan:\n{plan}\n\n"
             f"Build a modern, fully responsive {site_type} web application. Requirements: {description}.\n"
             f"Use Tailwind CSS via CDN in the HTML. Feel free to use modern JavaScript, Canvas, or third-party libraries via CDN (e.g., React via UMD, D3, framer-motion) if needed to fulfill the requirements.\n"
-            f"IMPORTANT: You MUST return the complete source code for 'index.html', 'styles.css', and 'script.js' by wrapping each inside an XML-like block: <file name=\"filename\">...</file>. Do not use JSON. Ensure the application is fully functional."
+            f"IMPORTANT: You MUST return the complete source code for 'index.html', 'styles.css', and 'script.js' by wrapping each inside an XML-like block (e.g., <file name=\"index.html\">...</file>). Do not use JSON. Ensure the application is fully functional."
         )
         gen_messages = [
             {"role": "system", "content": "You are DeepSeek V3, an expert Multi-file Code Generator."},
@@ -979,10 +979,13 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             {"role": "system", "content": "You are Qwen Coder, an expert code validator and bug fixer."},
             {"role": "user", "content": val_prompt}
         ]
-        out = await generate_text_free(val_messages)
+        val_out = await generate_text_free(val_messages)
         
         await log_website_job(job_id, "Validation complete. No errors found (or auto-fixed).", "validating")
         await log_website_job(job_id, "Preparing Preview...", "completed")
+        
+        if "<file" in val_out or "```html" in val_out:
+            out = val_out
         
         import re
         parsed_files = {}
