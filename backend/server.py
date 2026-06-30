@@ -121,6 +121,15 @@ class WebsiteIn(BaseModel):
 def now_utc() -> datetime: return datetime.now(timezone.utc)
 def new_id(prefix: str = "id") -> str: return f"{prefix}_{uuid.uuid4().hex[:16]}"
 
+async def log_website_job(job_id: str, message: str, stage: str = None):
+    try:
+        update_data = {"$push": {"logs": {"time": now_utc().isoformat(), "message": message}}}
+        if stage:
+            update_data["$set"] = {"stage": stage}
+        await db.website_jobs.update_one({"id": job_id}, update_data)
+    except Exception as e:
+        print(f"Error logging job: {e}")
+
 def hash_pw(pw: str) -> str: return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 def verify_pw(pw: str, hashed: str) -> bool:
     try: return bcrypt.checkpw(pw.encode(), hashed.encode())
@@ -487,7 +496,7 @@ SYSTEM_PROMPTS = {
     "code": "You are GREXO Code — an expert software engineer. Return clean, production-ready code in fenced markdown code blocks and brief explanations.",
     "content": "You are GREXO Content — a world-class copywriter and SEO expert. Produce engaging, well-formatted content.",
     "business": "You are GREXO Business — a senior business consultant. Produce structured, actionable, market-aware strategies.",
-    "website": 'You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output the exact code files inside <file name="...">...</file> XML blocks. ONLY output the XML blocks. Include index.html, styles.css, and script.js. Do NOT wrap the XML blocks in markdown code blocks.',
+    "website": 'You are a senior Full Stack Engineer and UI/UX Architect. Produce modular websites. Output the exact code files inside XML blocks (e.g. <file name="index.html">...code...</file>). ONLY output the XML blocks. Include index.html, styles.css, and script.js. Do NOT wrap the XML blocks in markdown code blocks.',
     "calculator": "Calculator"
 }
 
@@ -917,35 +926,44 @@ async def website_generate(body: WebsiteIn, user=Depends(get_current_user)):
 
 
 async def _run_website_job(job_id: str, user_id: str, description: str, site_type: str, files_data: list):
-    prompt = (
-        f"Build a modern, fully responsive, and highly capable {site_type} web application. "
-        f"Requirements: {description}. Use Tailwind CSS via CDN in the HTML. Feel free to use modern JavaScript, Canvas, or third-party libraries via CDN (e.g., React via UMD, D3, framer-motion) if needed to fulfill the requirements. "
-        f"You MUST return the complete source code for 'index.html', 'styles.css', and 'script.js' by wrapping each inside an XML-like block: <file name=\"filename\">...</file>. Do not use JSON. Ensure the application is fully functional."
-    )
     try:
-        user_content_parts = [{"type": "text", "text": prompt}]
+        await log_website_job(job_id, "Understanding Requirements...", "understanding")
+        
+        user_content_parts = []
         if files_data:
             for file in files_data:
-                mime = file.get("mime", "application/pdf")
+                mime = file.get("mime", "image/png")
                 b64_data = file["data"]
-                if "," in b64_data:
-                    b64_data = b64_data.split(",", 1)[1]
-                user_content_parts.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{mime};base64,{b64_data}"}
-                })
-
+                if "," in b64_data: b64_data = b64_data.split(",", 1)[1]
+                user_content_parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64_data}"}})
+                
+        prompt = (
+            f"Build a modern, fully responsive {site_type} web application. Requirements: {description}.\n"
+            f"Use Tailwind CSS via CDN in the HTML. Feel free to use modern JavaScript or third-party libraries via CDN (e.g., React via UMD, D3, framer-motion, lucide) if needed to fulfill the requirements.\n\n"
+            f"CRITICAL INSTRUCTION: You MUST return the complete, production-ready source code for 'index.html', 'styles.css', and 'script.js'. "
+            f"You MUST wrap each file's content in an XML block with the exact filename, like this:\n"
+            f'<file name="index.html">\n<!DOCTYPE html>\n<html>...</html>\n</file>\n'
+            f'<file name="styles.css">\n/* css here */\n</file>\n'
+            f'<file name="script.js">\n// js here\n</file>\n\n'
+            f"Do not use placeholders. Do not skip files. Return only the code."
+        )
+        user_content_parts.append({"type": "text", "text": prompt})
+        
+        await log_website_job(job_id, "Generating Code & Components...", "generating")
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPTS["website"]},
+            {"role": "system", "content": "You are an expert Full-Stack AI Engineer. You write clean, functional, and beautiful web applications."},
             {"role": "user", "content": user_content_parts}
         ]
+        
         out = await generate_text_free(messages)
+        
+        await log_website_job(job_id, "Code generated, finalizing...", "validating")
         
         import re
         parsed_files = {}
         xml_matches = re.finditer(r'<file\s+name=["\']([^"\']+)["\']>\s*(.*?)\s*</file>', out, re.DOTALL | re.IGNORECASE)
         for m in xml_matches:
-            name = m.group(1)
+            name = m.group(1).strip()
             content = m.group(2).strip()
             content = re.sub(r'^```[a-zA-Z]*\s*\n', '', content)
             content = re.sub(r'\n```\s*$', '', content)
@@ -956,35 +974,51 @@ async def _run_website_job(job_id: str, user_id: str, description: str, site_typ
             code_blocks = re.finditer(r'```[a-zA-Z]*\s*\n(.*?)```', out, re.DOTALL)
             blocks = list(code_blocks)
             if len(blocks) >= 3:
-                parsed_files["html"] = blocks[0].group(1).strip()
-                parsed_files["css"] = blocks[1].group(1).strip()
-                parsed_files["js"] = blocks[2].group(1).strip()
+                parsed_files["index.html"] = blocks[0].group(1).strip()
+                parsed_files["styles.css"] = blocks[1].group(1).strip()
+                parsed_files["script.js"] = blocks[2].group(1).strip()
             elif len(blocks) > 0:
                 html_code = blocks[0].group(1).strip()
-                parsed_files["html"] = html_code
+                parsed_files["index.html"] = html_code
                 
                 # Check for inline styles and scripts
                 import re as regex
                 style_match = regex.search(r'<style>(.*?)</style>', html_code, regex.DOTALL)
                 script_match = regex.search(r'<script>(.*?)</script>', html_code, regex.DOTALL)
                 
-                parsed_files["css"] = style_match.group(1).strip() if style_match else "* { margin: 0; padding: 0; box-sizing: border-box; }"
-                parsed_files["js"] = script_match.group(1).strip() if script_match else "console.log('App loaded.');"
+                parsed_files["styles.css"] = style_match.group(1).strip() if style_match else "* { margin: 0; padding: 0; box-sizing: border-box; }"
+                parsed_files["script.js"] = script_match.group(1).strip() if script_match else "console.log('App loaded.');"
                 
                 if style_match or script_match:
                      # Clean the html if it had embedded script/style to avoid duplicate rendering issues
                      cleaned = regex.sub(r'<style>.*?</style>', '', html_code, flags=regex.DOTALL)
                      cleaned = regex.sub(r'<script>.*?</script>', '', cleaned, flags=regex.DOTALL)
-                     parsed_files["html"] = cleaned
+                     parsed_files["index.html"] = cleaned
                 
         if not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
             
-        files = parsed_files if parsed_files else {
-            "index.html": "<h1>Generation Error</h1>",
-            "styles.css": "body { background: white; color: black; }",
-            "script.js": "console.log('App loaded.');"
-        }
+        normalized_files = {}
+        for k, v in parsed_files.items():
+            k_lower = k.lower()
+            if "html" in k_lower:
+                normalized_files["index.html"] = v
+            elif "css" in k_lower or "style" in k_lower:
+                normalized_files["styles.css"] = v
+            elif "js" in k_lower or "script" in k_lower:
+                normalized_files["script.js"] = v
+            else:
+                normalized_files[k] = v
+
+        # Ensure we have the minimum required files
+        if "index.html" not in normalized_files:
+            normalized_files["index.html"] = "<h1>App generated, but index.html is missing.</h1>"
+        if "styles.css" not in normalized_files:
+            normalized_files["styles.css"] = ""
+        if "script.js" not in normalized_files:
+            normalized_files["script.js"] = ""
+
+        files = normalized_files
         
         site_id = new_id("site")
         name = description[:30] + ("..." if len(description) > 30 else "")
@@ -1102,20 +1136,23 @@ async def chat_website(site_id: str, body: WebsiteChatIn, user=Depends(get_curre
 
 async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt: str, current_files: dict):
     try:
+        await log_website_job(job_id, f"Processing modification request: {prompt}", "generating")
         sys_prompt = SYSTEM_PROMPTS["website"] + "\n\nYou will receive the current files. Modify them based on the user's prompt. YOU MUST RETURN ALL THREE FILES completely, even if only one changed. Return ONLY XML blocks."
         
         current_code = f"Here is the current code:\n"
-        current_code += f"index.html:\n```html\n{current_files.get('html', '')}\n```\n\n"
-        current_code += f"styles.css:\n```css\n{current_files.get('css', '')}\n```\n\n"
-        current_code += f"script.js:\n```javascript\n{current_files.get('js', '')}\n```\n\n"
+        current_code += f"index.html:\n```html\n{current_files.get('index.html', current_files.get('html', ''))}\n```\n\n"
+        current_code += f"styles.css:\n```css\n{current_files.get('styles.css', current_files.get('css', ''))}\n```\n\n"
+        current_code += f"script.js:\n```javascript\n{current_files.get('script.js', current_files.get('js', ''))}\n```\n\n"
         current_code += f"User Request: {prompt}"
 
         messages = [
-            {"role": "system", "content": sys_prompt},
+            {"role": "system", "content": "You are DeepSeek V3, an expert Multi-file Code Generator. " + sys_prompt},
             {"role": "user", "content": current_code}
         ]
         
         out = await generate_text_free(messages)
+        
+        await log_website_job(job_id, "Modifications generated, validating...", "validating")
         
         import re
         parsed_files = {}
@@ -1149,14 +1186,27 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
 
         if not parsed_files:
             raise ValueError("The generation model did not return a valid format.")
+
+        normalized_files = {}
+        for k, v in parsed_files.items():
+            k_lower = k.lower()
+            if "html" in k_lower:
+                normalized_files["index.html"] = v
+            elif "css" in k_lower or "style" in k_lower:
+                normalized_files["styles.css"] = v
+            elif "js" in k_lower or "script" in k_lower:
+                normalized_files["script.js"] = v
+            else:
+                normalized_files[k] = v
             
         final_files = current_files.copy()
-        final_files.update(parsed_files)
+        final_files.update(normalized_files)
         
         await db.websites.update_one(
             {"id": site_id, "user_id": user_id},
             {"$set": {"files": final_files, "updated_at": now_utc().isoformat()}}
         )
+        await log_website_job(job_id, "Preview Ready.", "completed")
         await db.website_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "done", "files": final_files, "completed_at": now_utc().isoformat()}},
@@ -1167,6 +1217,7 @@ async def _run_website_chat_job(job_id: str, user_id: str, site_id: str, prompt:
         error_msg = str(e)
         if "JSONDecodeError" in str(type(e)):
              error_msg = "The generation model did not return a valid format."
+        await log_website_job(job_id, f"Error: {error_msg}", "error")
         await db.website_jobs.update_one(
             {"id": job_id},
             {"$set": {"status": "error", "error": error_msg[:300], "completed_at": now_utc().isoformat()}},
