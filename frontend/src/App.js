@@ -11,7 +11,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import DashboardLayout from "@/pages/DashboardLayout";
 import DashboardHome from "@/pages/DashboardHome";
 import ChatPage from "@/pages/ChatPage";
-import WebsitePage from "@/pages/WebsitePage";
+import WebsiteBuilder from "@/pages/WebsiteBuilder";
 import ImagePage from "@/pages/ImagePage";
 import ProductivityPage from "@/pages/ProductivityPage"; // Imported here
 import ProfilePage from "@/pages/ProfilePage";
@@ -48,7 +48,7 @@ function AppRouter() {
         <Route path="/dashboard" element={<DashboardHome />} />
         <Route path="/dashboard/chat" element={<ChatPage />} />
         <Route path="/dashboard/chat/:cid" element={<ChatPage />} />
-        <Route path="/dashboard/website" element={<WebsitePage />} />
+        <Route path="/dashboard/website" element={<WebsiteBuilder />} />
         <Route path="/dashboard/images" element={<ImagePage />} />
         <Route path="/dashboard/productivity" element={<ProductivityPage />} /> {/* Route Added Here */}
         <Route path="/dashboard/billing" element={<BillingPage />} />
