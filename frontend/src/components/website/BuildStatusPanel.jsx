@@ -40,9 +40,8 @@ export default function BuildStatusPanel({ jobId, onComplete, api }) {
   
   const stages = [
     { id: "understanding", label: "Understanding Requirements" },
-    { id: "planning", label: "Planning Architecture & Stack" },
     { id: "generating", label: "Generating Code & Components" },
-    { id: "validating", label: "Validating & Fixing Errors" },
+    { id: "validating", label: "Validating Output" },
     { id: "completed", label: "Preview Ready" }
   ];
 
