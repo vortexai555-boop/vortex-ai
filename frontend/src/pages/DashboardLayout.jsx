@@ -13,6 +13,7 @@ const NAV = [
   { to: "/dashboard/chat", icon: ChatCircleDots, label: "AI Chat", testid: "nav-chat" },
   { to: "/dashboard/website", icon: Globe, label: "Website Builder", testid: "nav-website" },
   { to: "/dashboard/images", icon: ImageIcon, label: "Image Generator", testid: "nav-images" },
+  { to: "/dashboard/tts", icon: MagicWand, label: "Text to Speech", testid: "nav-tts" },
   { to: "/dashboard/productivity", icon: MagicWand, label: "Productivity", testid: "nav-productivity" },
   { to: "/dashboard/billing", icon: CreditCard, label: "Billing", testid: "nav-billing" },
   { to: "/dashboard/profile", icon: User, label: "Profile", testid: "nav-profile" },
