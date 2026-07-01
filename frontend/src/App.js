@@ -13,6 +13,7 @@ import DashboardHome from "@/pages/DashboardHome";
 import ChatPage from "@/pages/ChatPage";
 import WebsitePage from "@/pages/WebsitePage";
 import ImagePage from "@/pages/ImagePage";
+import TTSPage from "@/pages/TTSPage";
 import ProductivityPage from "@/pages/ProductivityPage"; // Imported here
 import ProfilePage from "@/pages/ProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -50,6 +51,7 @@ function AppRouter() {
         <Route path="/dashboard/chat/:cid" element={<ChatPage />} />
         <Route path="/dashboard/website" element={<WebsitePage />} />
         <Route path="/dashboard/images" element={<ImagePage />} />
+        <Route path="/dashboard/tts" element={<TTSPage />} />
         <Route path="/dashboard/productivity" element={<ProductivityPage />} /> {/* Route Added Here */}
         <Route path="/dashboard/billing" element={<BillingPage />} />
         <Route path="/dashboard/payment" element={<PaymentPage />} />
